@@ -9,6 +9,7 @@ import com.manasm.habit100.ui.shelf.Badge
 import com.manasm.habit100.ui.shelf.ShelfViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
@@ -61,7 +62,7 @@ class ShelfViewModelTest {
         val id = graduate("Read")
 
         val rows = shelfVm().let { vm ->
-            val r = vm.rows.first { it.isNotEmpty() }
+            val r = vm.rows.filterNotNull().first { it.isNotEmpty() }
             assertEquals(1, r.size)
             assertEquals(id, r[0].id)
             assertEquals(Badge.CHECK_IN, r[0].badge)
@@ -77,7 +78,7 @@ class ShelfViewModelTest {
     @Test fun starting_a_second_habit_lights_up_forming_now_and_blocks_tune_up() = runTest {
         graduate("Read")
         val vm = shelfVm()
-        vm.rows.first { it.isNotEmpty() }
+        vm.rows.filterNotNull().first { it.isNotEmpty() }
 
         repo.createHabit("Run", zone)
 
@@ -86,18 +87,18 @@ class ShelfViewModelTest {
         assertEquals(1, forming.dayNumber)
         assertEquals(100, forming.trackLength)
 
-        val row = vm.rows.first { it.isNotEmpty() }[0]
+        val row = vm.rows.filterNotNull().first { it.isNotEmpty() }[0]
         assertFalse(row.canTuneUp)
     }
 
     @Test fun confirming_a_check_in_flips_the_badge_to_going_strong() = runTest {
         val id = graduate("Read")
         val vm = shelfVm()
-        assertEquals(Badge.CHECK_IN, vm.rows.first { it.isNotEmpty() }[0].badge)
+        assertEquals(Badge.CHECK_IN, vm.rows.filterNotNull().first { it.isNotEmpty() }[0].badge)
 
         vm.confirm(id)
 
-        val row = vm.rows.first { it.isNotEmpty() && it[0].badge != Badge.CHECK_IN }[0]
+        val row = vm.rows.filterNotNull().first { it.isNotEmpty() && it[0].badge != Badge.CHECK_IN }[0]
         assertEquals(Badge.GOING_STRONG, row.badge)
     }
 }

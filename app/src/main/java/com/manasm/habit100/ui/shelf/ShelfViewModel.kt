@@ -21,12 +21,13 @@ class ShelfViewModel(
     private val repo: HabitRepository,
 ) : ViewModel() {
 
-    val rows: StateFlow<List<ShelfRow>> = repo.observeMastered()
+    /** `null` until the first DB emission — lets the screen skip the empty-state flash. */
+    val rows: StateFlow<List<ShelfRow>?> = repo.observeMastered()
         .map { list -> list.map { it.toRow() } }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     val masteredCount: StateFlow<Int> = rows
-        .map { it.size }
+        .map { it?.size ?: 0 }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
 
     val formingNow: StateFlow<FormingNow?> = repo.observeActive()

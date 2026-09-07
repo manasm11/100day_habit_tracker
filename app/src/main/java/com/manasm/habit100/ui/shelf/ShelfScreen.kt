@@ -82,15 +82,16 @@ fun ShelfScreen(vm: ShelfViewModel, onBack: () -> Unit) {
                 }
             }
 
-            if (rows.isEmpty()) {
-                item {
+            val loadedRows = rows
+            when {
+                loadedRows == null -> Unit // not loaded yet — skip the empty-state flash
+                loadedRows.isEmpty() -> item {
                     Text(
                         "Nothing mastered yet — your first 100 days are how it starts.",
                         style = MaterialTheme.typography.bodyMedium,
                     )
                 }
-            } else {
-                items(rows, key = { it.id }) { row ->
+                else -> items(loadedRows, key = { it.id }) { row ->
                     ShelfRowItem(
                         row = row,
                         expanded = expandedRow == row.id,
