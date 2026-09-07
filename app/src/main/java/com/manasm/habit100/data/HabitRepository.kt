@@ -25,6 +25,12 @@ class HabitRepository(
     fun snapshotOf(habit: HabitEntity, logs: List<DayLog>): RuleSnapshot =
         HabitRules.evaluate(habit.toRuleInput(logs), clock.now())
 
+    fun observeUnacknowledgedGraduation(): Flow<HabitEntity?> =
+        habitDao.observeUnacknowledgedGraduation()
+
+    fun observeFailedHabitFlow(): Flow<HabitEntity?> =
+        habitDao.observeFailedHabit()
+
     fun observeActive(): Flow<ActiveHabit?> =
         habitDao.observeActive().flatMapLatest { habit ->
             if (habit == null) {
@@ -144,7 +150,12 @@ class HabitRepository(
     }
 
     suspend fun abandonHabit(habitId: Long) {
-        // Failed habits are already out of the slot; no-op marker for v1 so the UI
-        // has a symmetric action. Leaves status = 'failed'.
+        db.withTransaction {
+            val habit = habitDao.byId(habitId) ?: return@withTransaction
+            check(habit.status == "failed") { "Habit is not failed" }
+            // "abandoned" is a free-string status excluded from every observe* query, so
+            // the habit simply disappears from all screens.
+            habitDao.update(habit.copy(status = "abandoned"))
+        }
     }
 }

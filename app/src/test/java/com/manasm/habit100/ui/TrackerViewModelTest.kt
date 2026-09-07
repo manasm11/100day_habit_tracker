@@ -1,0 +1,127 @@
+package com.manasm.habit100.ui
+
+import androidx.room.Room
+import androidx.test.core.app.ApplicationProvider
+import com.manasm.habit100.data.HabitDatabase
+import com.manasm.habit100.data.HabitDatabaseTestHooks
+import com.manasm.habit100.data.HabitRepository
+import com.manasm.habit100.support.FakeClock
+import com.manasm.habit100.ui.tracker.TrackerUiState
+import com.manasm.habit100.ui.tracker.TrackerViewModel
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.filterNot
+import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.setMain
+import org.junit.After
+import org.junit.Assert.*
+import org.junit.Before
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
+import java.time.LocalDate
+import java.time.ZoneId
+
+@OptIn(ExperimentalCoroutinesApi::class)
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [34])
+class TrackerViewModelTest {
+    private val zone = ZoneId.of("America/New_York")
+    private fun clockAt(d: LocalDate) = FakeClock(d.atTime(9, 0).atZone(zone).toInstant())
+
+    @Before fun setMain() = Dispatchers.setMain(Dispatchers.Unconfined)
+    @After fun resetMain() = Dispatchers.resetMain()
+
+    private fun setup(clock: FakeClock): Pair<HabitRepository, TrackerViewModel> {
+        val db = Room.inMemoryDatabaseBuilder(ApplicationProvider.getApplicationContext(), HabitDatabase::class.java)
+            .allowMainThreadQueries().addCallback(HabitDatabaseTestHooks.callback()).build()
+        val repo = HabitRepository(db, db.habitDao(), db.dayLogDao(), db.checkinDao(), clock)
+        return repo to TrackerViewModel(repo, clock, null, null)
+    }
+
+    private suspend fun TrackerViewModel.settled(): TrackerUiState =
+        state.filterNot { it is TrackerUiState.Loading }.first()
+
+    @Test fun empty_when_no_habit() = runTest {
+        val (_, vm) = setup(clockAt(LocalDate.of(2026, 1, 1)))
+        assertTrue(vm.settled() is TrackerUiState.Empty)
+    }
+
+    @Test fun forming_after_create_then_mark() = runTest {
+        val (repo, vm) = setup(clockAt(LocalDate.of(2026, 1, 1)))
+        repo.createHabit("Read", zone)
+        val s1 = vm.settled() as TrackerUiState.Forming
+        assertEquals(1, s1.dayNumber)
+        assertEquals(100, s1.trackLength)
+        assertTrue(s1.canMarkToday)
+        vm.markDone()
+        val s2 = vm.state.first {
+            it is TrackerUiState.Forming && !(it as TrackerUiState.Forming).canMarkToday
+        } as TrackerUiState.Forming
+        assertEquals(1, s2.doneCount)
+        assertTrue(s2.alreadyDoneToday)
+    }
+
+    @Test fun amber_at_risk_after_missed_yesterday() = runTest {
+        val clock = clockAt(LocalDate.of(2026, 1, 1))
+        val (repo, vm) = setup(clock)
+        repo.createHabit("Read", zone)
+        vm.markDone() // day 1 done
+        vm.state.first { it is TrackerUiState.Forming && (it as TrackerUiState.Forming).doneCount == 1 }
+        clock.advanceDays(2) // day 2 missed, now day 3
+        vm.refresh() // Ruling 3: no DB write, re-derive against current clock
+        val s = vm.state.first {
+            it is TrackerUiState.Forming && (it as TrackerUiState.Forming).atRisk
+        } as TrackerUiState.Forming
+        assertTrue(s.atRisk)
+        assertEquals(3, s.dayNumber)
+    }
+
+    @Test fun graduated_state_routed_via_acknowledgement_flag() = runTest {
+        val clock = clockAt(LocalDate.of(2026, 1, 1))
+        val (repo, vm) = setup(clock)
+        repo.createHabit("Read", zone)
+        val id = repo.observeActive().first()!!.habit.id
+        repeat(99) { repo.markTodayDone(id); clock.advanceDays(1) }
+        // day 100, not yet marked -> still forming
+        assertTrue(vm.settled() is TrackerUiState.Forming)
+        vm.markDone() // day 100 done -> applyTransition -> mastered + unacknowledged
+        val g = vm.state.first { it is TrackerUiState.Graduated } as TrackerUiState.Graduated
+        assertEquals(id, g.habitId)
+    }
+
+    @Test fun failed_then_restart_returns_to_forming_day_one() = runTest {
+        val clock = clockAt(LocalDate.of(2026, 1, 1))
+        val (repo, vm) = setup(clock)
+        repo.createHabit("Read", zone)
+        val id = repo.observeActive().first()!!.habit.id
+        repo.markTodayDone(id)   // day 1 done
+        clock.advanceDays(3)     // days 2,3 missed -> fail on day 3; now day 4
+        vm.refresh()             // Ruling 3
+        val f = vm.state.first { it is TrackerUiState.Failed } as TrackerUiState.Failed
+        assertEquals("two misses in a row", f.reason)
+        assertEquals(3, f.failedOnDay)
+        assertEquals(id, f.habitId)
+
+        vm.restart()
+        val r = vm.state.first { it is TrackerUiState.Forming } as TrackerUiState.Forming
+        assertEquals(1, r.dayNumber)
+        assertEquals(0, r.doneCount)
+    }
+
+    @Test fun failed_then_abandon_returns_to_empty() = runTest {
+        val clock = clockAt(LocalDate.of(2026, 1, 1))
+        val (repo, vm) = setup(clock)
+        repo.createHabit("Read", zone)
+        val id = repo.observeActive().first()!!.habit.id
+        repo.markTodayDone(id)
+        clock.advanceDays(3)
+        vm.refresh()
+        vm.state.first { it is TrackerUiState.Failed }
+        vm.abandon()
+        assertTrue(vm.state.first { it is TrackerUiState.Empty } is TrackerUiState.Empty)
+    }
+}

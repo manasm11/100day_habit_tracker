@@ -27,6 +27,9 @@ interface HabitDao {
 
     @Query("SELECT * FROM habits WHERE status = 'mastered' AND graduationAcknowledged = 0 ORDER BY graduatedAt DESC LIMIT 1")
     fun observeUnacknowledgedGraduation(): Flow<HabitEntity?>
+
+    @Query("SELECT * FROM habits WHERE status = 'failed' ORDER BY id DESC LIMIT 1")
+    fun observeFailedHabit(): Flow<HabitEntity?>
 }
 
 @Dao
