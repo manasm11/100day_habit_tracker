@@ -1,6 +1,7 @@
 package com.manasm.habit100.ui.graduation
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -11,6 +12,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
@@ -37,8 +39,15 @@ fun GraduationScreen(
     onKeepGoing: () -> Unit,
 ) {
     val ui by vm.ui.collectAsStateWithLifecycle()
-    val u = ui ?: return
     val context = LocalContext.current
+
+    val u = ui
+    if (u == null) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            CircularProgressIndicator()
+        }
+        return
+    }
 
     Column(
         Modifier

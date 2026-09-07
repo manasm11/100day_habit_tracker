@@ -59,7 +59,10 @@ fun NewHabitScreen(
             )
             OutlinedTextField(
                 value = name,
-                onValueChange = vm::onNameChange,
+                onValueChange = {
+                    blocked = false
+                    vm.onNameChange(it)
+                },
                 label = { Text("What will you do daily?") },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),

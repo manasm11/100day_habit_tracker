@@ -1,5 +1,6 @@
 package com.manasm.habit100.ui.tracker
 
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -26,7 +27,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.LifecycleEventEffect
@@ -184,19 +184,37 @@ private fun FormingContent(s: TrackerUiState.Forming, vm: TrackerViewModel) {
 @Composable
 private fun Legend() {
     Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-        LegendDot(HabitColors.done, "done")
-        LegendDot(HabitColors.missed, "missed")
-        LegendDot(Color(0x33000000), "today")
+        LegendEntry(label = "done") {
+            Surface(
+                color = HabitColors.done,
+                shape = MaterialTheme.shapes.small,
+                modifier = Modifier.size(12.dp),
+            ) {}
+        }
+        LegendEntry(label = "missed") {
+            Surface(
+                color = HabitColors.missed,
+                shape = MaterialTheme.shapes.small,
+                modifier = Modifier.size(12.dp),
+            ) {}
+        }
+        LegendEntry(label = "today") {
+            Box(
+                Modifier
+                    .size(12.dp)
+                    .border(2.dp, HabitColors.done, MaterialTheme.shapes.small)
+            )
+        }
     }
 }
 
 @Composable
-private fun LegendDot(color: Color, label: String) {
+private fun LegendEntry(label: String, swatch: @Composable () -> Unit) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        Surface(color = color, shape = MaterialTheme.shapes.small, modifier = Modifier.size(12.dp)) {}
+        swatch()
         Text(label, style = MaterialTheme.typography.labelSmall)
     }
 }

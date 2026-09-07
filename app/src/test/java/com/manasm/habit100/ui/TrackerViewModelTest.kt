@@ -1,11 +1,10 @@
 package com.manasm.habit100.ui
 
-import androidx.room.Room
-import androidx.test.core.app.ApplicationProvider
-import com.manasm.habit100.data.HabitDatabase
 import com.manasm.habit100.data.HabitDatabaseTestHooks
+import com.manasm.habit100.data.HabitDatabaseTestHooks.TestDb
 import com.manasm.habit100.data.HabitRepository
 import com.manasm.habit100.support.FakeClock
+import com.manasm.habit100.support.clearForTest
 import com.manasm.habit100.ui.tracker.TrackerUiState
 import com.manasm.habit100.ui.tracker.TrackerViewModel
 import kotlinx.coroutines.Dispatchers
@@ -32,14 +31,28 @@ class TrackerViewModelTest {
     private val zone = ZoneId.of("America/New_York")
     private fun clockAt(d: LocalDate) = FakeClock(d.atTime(9, 0).atZone(zone).toInstant())
 
+    private var db: TestDb? = null
+    private var vm: TrackerViewModel? = null
+
     @Before fun setMain() = Dispatchers.setMain(Dispatchers.Unconfined)
-    @After fun resetMain() = Dispatchers.resetMain()
+
+    @After fun tearDown() {
+        // Cancel the ViewModel's long-lived viewModelScope collectors BEFORE closing the
+        // database, otherwise a re-query races the close and Robolectric's CloseGuard logs
+        // a spurious "resource never released" stack trace into the suite output.
+        vm?.clearForTest()
+        vm = null
+        db?.close()
+        db = null
+        Dispatchers.resetMain()
+    }
 
     private fun setup(clock: FakeClock): Pair<HabitRepository, TrackerViewModel> {
-        val db = Room.inMemoryDatabaseBuilder(ApplicationProvider.getApplicationContext(), HabitDatabase::class.java)
-            .allowMainThreadQueries().addCallback(HabitDatabaseTestHooks.callback()).build()
-        val repo = HabitRepository(db, db.habitDao(), db.dayLogDao(), db.checkinDao(), clock)
-        return repo to TrackerViewModel(repo, clock, null, null)
+        val testDb = HabitDatabaseTestHooks.testDb()
+        db = testDb
+        val d = testDb.db
+        val repo = HabitRepository(d, d.habitDao(), d.dayLogDao(), d.checkinDao(), clock)
+        return repo to TrackerViewModel(repo, clock, null, null).also { vm = it }
     }
 
     private suspend fun TrackerViewModel.settled(): TrackerUiState =

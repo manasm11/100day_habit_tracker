@@ -69,4 +69,14 @@ dependencies {
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.androidx.work.testing)
     testImplementation(platform(libs.androidx.compose.bom))
+
+    // androidTest: written as documentation of intended UI coverage; not run in CI (no device).
+    androidTestImplementation(platform(libs.androidx.compose.bom))
+    androidTestImplementation(libs.junit)
+    androidTestImplementation(libs.androidx.test.ext.junit)
+    androidTestImplementation(libs.androidx.test.core)
+    androidTestImplementation(libs.androidx.test.runner)
+    androidTestImplementation(libs.androidx.espresso.core)
+    androidTestImplementation(libs.androidx.compose.ui.test.junit4)
+    debugImplementation(libs.androidx.compose.ui.test.manifest)
 }

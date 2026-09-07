@@ -33,7 +33,7 @@ class AppContainer(app: Application) {
     val repository: HabitRepository =
         HabitRepository(db, db.habitDao(), db.dayLogDao(), db.checkinDao(), clock)
 
-    val rolloverEngine: RolloverEngine by lazy {
+    private val rolloverEngine: RolloverEngine by lazy {
         RolloverEngine(
             RepoRolloverPort(repository, db, db.habitDao(), db.dayLogDao()),
             clock,

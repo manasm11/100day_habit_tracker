@@ -16,6 +16,7 @@ class RolloverWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(c
             container.runRolloverNow()
             Result.success()
         } catch (e: Exception) {
+            android.util.Log.w("RolloverWorker", "rollover failed; will retry", e)
             Result.retry()
         }
     }

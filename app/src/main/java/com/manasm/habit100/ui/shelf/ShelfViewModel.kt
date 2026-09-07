@@ -9,6 +9,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 
 /**
  * State for the mastered shelf: one [ShelfRow] per graduated habit with its monthly
@@ -48,17 +50,23 @@ class ShelfViewModel(
     fun startTuneUp(id: Long) = viewModelScope.launch { runCatching { repo.startTuneUp(id) } }
 }
 
+private val GRADUATED_DATE_FORMAT: DateTimeFormatter =
+    DateTimeFormatter.ofPattern("MMM d, yyyy")
+
 private fun MasteredHabitRow.toRow(): ShelfRow {
     val badge = when {
         slipped -> Badge.SLIPPED
         checkInDue -> Badge.CHECK_IN
         else -> Badge.GOING_STRONG
     }
+    val graduatedAt = habit.graduatedAt
     val subtitle = when {
         slipped -> "Slipped — lock it back in"
         maintenanceStreakMonths > 0 -> "$maintenanceStreakMonths month streak"
-        habit.graduatedAt != null -> "Graduated"
-        else -> ""
+        graduatedAt != null -> "Graduated ${
+            GRADUATED_DATE_FORMAT.withZone(ZoneId.of(habit.timeZoneId)).format(graduatedAt)
+        }"
+        else -> "Graduated"
     }
     return ShelfRow(
         id = habit.id,

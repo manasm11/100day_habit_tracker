@@ -1,13 +1,12 @@
 package com.manasm.habit100.ui
 
-import androidx.room.Room
-import androidx.test.core.app.ApplicationProvider
-import com.manasm.habit100.data.HabitDatabase
 import com.manasm.habit100.data.HabitDatabaseTestHooks
 import com.manasm.habit100.data.HabitRepository
 import com.manasm.habit100.support.FakeClock
+import com.manasm.habit100.support.clearForTest
 import com.manasm.habit100.ui.newhabit.NewHabitViewModel
 import kotlinx.coroutines.test.runTest
+import org.junit.After
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -20,11 +19,16 @@ import java.time.ZoneId
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class NewHabitViewModelTest {
+    private val dbs = mutableListOf<HabitDatabaseTestHooks.TestDb>()
+    private val vms = mutableListOf<NewHabitViewModel>()
+
+    @After fun tearDown() {
+        vms.forEach { it.clearForTest() }
+        dbs.forEach { it.close() }
+    }
+
     private fun repo(): HabitRepository {
-        val db = Room.inMemoryDatabaseBuilder(
-            ApplicationProvider.getApplicationContext(),
-            HabitDatabase::class.java,
-        ).allowMainThreadQueries().addCallback(HabitDatabaseTestHooks.callback()).build()
+        val db = HabitDatabaseTestHooks.testDb().also { dbs += it }.db
         return HabitRepository(
             db,
             db.habitDao(),
@@ -34,8 +38,10 @@ class NewHabitViewModelTest {
         )
     }
 
+    private fun newHabitVm(r: HabitRepository) = NewHabitViewModel(r).also { vms += it }
+
     @Test fun blank_name_cannot_create() {
-        val vm = NewHabitViewModel(repo())
+        val vm = newHabitVm(repo())
         vm.onNameChange("   ")
         assertFalse(vm.canCreateEnabled.value)
         vm.onNameChange("Read")
@@ -44,10 +50,10 @@ class NewHabitViewModelTest {
 
     @Test fun create_succeeds_and_blocks_second() = runTest {
         val r = repo()
-        val vm = NewHabitViewModel(r)
+        val vm = newHabitVm(r)
         vm.onNameChange("Read")
         assertTrue(vm.create(ZoneId.of("America/New_York")))
-        val vm2 = NewHabitViewModel(r)
+        val vm2 = newHabitVm(r)
         vm2.onNameChange("Run")
         assertFalse(vm2.create(ZoneId.of("America/New_York")))
     }

@@ -82,17 +82,26 @@ fun ShelfScreen(vm: ShelfViewModel, onBack: () -> Unit) {
                 }
             }
 
-            items(rows, key = { it.id }) { row ->
-                ShelfRowItem(
-                    row = row,
-                    expanded = expandedRow == row.id,
-                    onToggle = {
-                        expandedRow = if (expandedRow == row.id) null else row.id
-                    },
-                    onConfirm = { vm.confirm(row.id); expandedRow = null },
-                    onSlip = { vm.slip(row.id); expandedRow = null },
-                    onTuneUp = { vm.startTuneUp(row.id) },
-                )
+            if (rows.isEmpty()) {
+                item {
+                    Text(
+                        "Nothing mastered yet — your first 100 days are how it starts.",
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                }
+            } else {
+                items(rows, key = { it.id }) { row ->
+                    ShelfRowItem(
+                        row = row,
+                        expanded = expandedRow == row.id,
+                        onToggle = {
+                            expandedRow = if (expandedRow == row.id) null else row.id
+                        },
+                        onConfirm = { vm.confirm(row.id); expandedRow = null },
+                        onSlip = { vm.slip(row.id); expandedRow = null },
+                        onTuneUp = { vm.startTuneUp(row.id) },
+                    )
+                }
             }
 
             item { HorizontalDivider() }
@@ -210,7 +219,7 @@ private fun ShelfRowItem(
 private fun BadgeChip(badge: Badge) {
     val (label, color) = when (badge) {
         Badge.CHECK_IN -> "Check in" to HabitColors.amber
-        Badge.SLIPPED -> "Slipped" to HabitColors.amber
+        Badge.SLIPPED -> "Slipped" to HabitColors.missed
         Badge.GOING_STRONG -> "Going strong" to HabitColors.done
     }
     Surface(

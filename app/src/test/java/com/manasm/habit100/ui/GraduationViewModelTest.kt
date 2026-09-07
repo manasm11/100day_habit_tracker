@@ -1,12 +1,11 @@
 package com.manasm.habit100.ui
 
-import androidx.room.Room
-import androidx.test.core.app.ApplicationProvider
 import com.manasm.habit100.data.HabitDatabase
 import com.manasm.habit100.data.HabitDatabaseTestHooks
 import com.manasm.habit100.data.HabitRepository
 import com.manasm.habit100.ui.CellState
 import com.manasm.habit100.support.FakeClock
+import com.manasm.habit100.support.clearForTest
 import com.manasm.habit100.ui.graduation.GraduationViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -30,21 +29,25 @@ import java.time.ZoneId
 @Config(sdk = [34])
 class GraduationViewModelTest {
     private val zone = ZoneId.of("America/New_York")
-    private lateinit var db: HabitDatabase
+    private lateinit var testDb: HabitDatabaseTestHooks.TestDb
+    private val db: HabitDatabase get() = testDb.db
     private lateinit var repo: HabitRepository
+    private val vms = mutableListOf<GraduationViewModel>()
     private val clock =
         FakeClock(LocalDate.of(2026, 1, 1).atTime(9, 0).atZone(zone).toInstant())
 
+    private fun gradVm(id: Long) = GraduationViewModel(repo, id).also { vms += it }
+
     @Before fun setup() {
         Dispatchers.setMain(Dispatchers.Unconfined)
-        db = Room.inMemoryDatabaseBuilder(
-            ApplicationProvider.getApplicationContext(), HabitDatabase::class.java,
-        ).allowMainThreadQueries().addCallback(HabitDatabaseTestHooks.callback()).build()
+        testDb = HabitDatabaseTestHooks.testDb()
         repo = HabitRepository(db, db.habitDao(), db.dayLogDao(), db.checkinDao(), clock)
     }
 
     @After fun tearDown() {
-        db.close()
+        vms.forEach { it.clearForTest() }
+        vms.clear()
+        testDb.close()
         Dispatchers.resetMain()
     }
 
@@ -59,7 +62,7 @@ class GraduationViewModelTest {
         }
         assertEquals("mastered", db.habitDao().byId(id)!!.status)
 
-        val vm = GraduationViewModel(repo, id)
+        val vm = gradVm(id)
         val ui = vm.ui.filterNotNull().first()
 
         assertEquals("Read", ui.name)
@@ -77,7 +80,7 @@ class GraduationViewModelTest {
         val id = repo.observeActive().first()!!.habit.id
         repeat(100) { repo.markTodayDone(id); clock.advanceDays(1) }
 
-        val vm = GraduationViewModel(repo, id)
+        val vm = gradVm(id)
         vm.ui.filterNotNull().first()
 
         val done = kotlinx.coroutines.CompletableDeferred<Unit>()

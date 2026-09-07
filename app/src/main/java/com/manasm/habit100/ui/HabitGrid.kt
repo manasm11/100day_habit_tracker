@@ -1,17 +1,19 @@
 package com.manasm.habit100.ui
 
+import android.content.res.Configuration.UI_MODE_NIGHT_YES
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.tooling.preview.Preview
 import com.manasm.habit100.ui.theme.HabitColors
+import com.manasm.habit100.ui.theme.HabitTheme
 
 enum class GridSize(val gapFraction: Float, val cornerFraction: Float, val strokeDp: Float) {
     HERO(0.14f, 0.22f, 2f),
@@ -21,7 +23,9 @@ enum class GridSize(val gapFraction: Float, val cornerFraction: Float, val strok
 
 @Composable
 fun HabitGrid(cells: List<CellState>, size: GridSize, modifier: Modifier = Modifier) {
-    val future = Color(0x1F000000)
+    // Capture theme colors in the composable body — the Canvas draw block is not @Composable.
+    val futureColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f)
+    val todayStroke = HabitColors.done.copy(alpha = 0.9f)
     Canvas(modifier = modifier.aspectRatio(1f)) {
         val cols = 10
         val cell = this.size.width / (cols + (cols - 1) * size.gapFraction)
@@ -35,9 +39,9 @@ fun HabitGrid(cells: List<CellState>, size: GridSize, modifier: Modifier = Modif
             when (state) {
                 CellState.DONE -> drawRoundRect(HabitColors.done, topLeft, cs, radius)
                 CellState.MISSED -> drawRoundRect(HabitColors.missed, topLeft, cs, radius)
-                CellState.FUTURE -> drawRoundRect(future, topLeft, cs, radius)
+                CellState.FUTURE -> drawRoundRect(futureColor, topLeft, cs, radius)
                 CellState.TODAY -> drawRoundRect(
-                    color = HabitColors.done.copy(alpha = 0.9f),
+                    color = todayStroke,
                     topLeft = topLeft, size = cs, cornerRadius = radius,
                     style = Stroke(width = size.strokeDp.dp.toPx()),
                 )
@@ -46,26 +50,27 @@ fun HabitGrid(cells: List<CellState>, size: GridSize, modifier: Modifier = Modif
     }
 }
 
+private val previewCells = listOf(
+    CellState.DONE, CellState.DONE, CellState.MISSED, CellState.TODAY,
+    CellState.FUTURE, CellState.FUTURE, CellState.FUTURE, CellState.FUTURE, CellState.FUTURE, CellState.FUTURE,
+    CellState.DONE, CellState.DONE, CellState.DONE, CellState.DONE,
+    CellState.DONE, CellState.DONE, CellState.DONE, CellState.DONE, CellState.DONE, CellState.DONE,
+) + List(80) { CellState.FUTURE }
+
 @Preview(showBackground = true)
 @Composable
 private fun HabitGridHeroPreview() {
-    val sampleCells = listOf(
-        CellState.DONE, CellState.DONE, CellState.MISSED, CellState.TODAY,
-        CellState.FUTURE, CellState.FUTURE, CellState.FUTURE, CellState.FUTURE, CellState.FUTURE, CellState.FUTURE,
-        CellState.DONE, CellState.DONE, CellState.DONE, CellState.DONE,
-        CellState.DONE, CellState.DONE, CellState.DONE, CellState.DONE, CellState.DONE, CellState.DONE,
-    ) + List(80) { CellState.FUTURE }
-    HabitGrid(cells = sampleCells, size = GridSize.HERO)
+    HabitTheme(darkTheme = false) { HabitGrid(cells = previewCells, size = GridSize.HERO) }
+}
+
+@Preview(showBackground = true, uiMode = UI_MODE_NIGHT_YES)
+@Composable
+private fun HabitGridHeroDarkPreview() {
+    HabitTheme(darkTheme = true) { HabitGrid(cells = previewCells, size = GridSize.HERO) }
 }
 
 @Preview(showBackground = true)
 @Composable
 private fun HabitGridThumbnailPreview() {
-    val sampleCells = listOf(
-        CellState.DONE, CellState.DONE, CellState.MISSED, CellState.TODAY,
-        CellState.FUTURE, CellState.FUTURE, CellState.FUTURE, CellState.FUTURE, CellState.FUTURE, CellState.FUTURE,
-        CellState.DONE, CellState.DONE, CellState.DONE, CellState.DONE,
-        CellState.DONE, CellState.DONE, CellState.DONE, CellState.DONE, CellState.DONE, CellState.DONE,
-    ) + List(80) { CellState.FUTURE }
-    HabitGrid(cells = sampleCells, size = GridSize.THUMBNAIL)
+    HabitTheme(darkTheme = false) { HabitGrid(cells = previewCells, size = GridSize.THUMBNAIL) }
 }
