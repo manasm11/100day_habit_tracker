@@ -52,7 +52,8 @@ class TrackerViewModel(
         // it is over but nothing has written to the DB (e.g. the clock advanced past a miss).
         // Once persisted, observeActive emits null and the graduation / failed flows drive
         // the state. Rollover normally does this.
-        // TODO(task-14): remove once the rollover engine runs on ON_START / periodic.
+        // Fallback: persist a terminal transition for a session left open across local midnight
+        // (the rollover engine covers foreground/periodic starts).
         viewModelScope.launch {
             combine(repo.observeActive(), refreshTicker) { active, _ -> active }.collect { active ->
                 if (active == null) return@collect

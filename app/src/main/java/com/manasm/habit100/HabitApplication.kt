@@ -1,10 +1,19 @@
 package com.manasm.habit100
 
 import android.app.Application
+import android.util.Log
+import androidx.lifecycle.DefaultLifecycleObserver
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.ProcessLifecycleOwner
+import androidx.work.ExistingPeriodicWorkPolicy
+import androidx.work.PeriodicWorkRequestBuilder
+import androidx.work.WorkManager
+import com.manasm.habit100.rollover.RolloverWorker
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import java.util.concurrent.TimeUnit
 
 class HabitApplication : Application() {
 
@@ -26,5 +35,22 @@ class HabitApplication : Application() {
                 devClockStore.offsetSeconds.collect { devClock.update(it) }
             }
         }
+
+        // Foreground catch-up: run rollover every time the app is brought to the foreground so
+        // elapsed misses are filled and terminal transitions persisted while the user is looking.
+        ProcessLifecycleOwner.get().lifecycle.addObserver(object : DefaultLifecycleObserver {
+            override fun onStart(owner: LifecycleOwner) {
+                appScope.launch { runCatching { container.runRolloverNow() } }
+            }
+        })
+
+        // Daily backstop: keeps rollover happening even if the app is never foregrounded.
+        runCatching {
+            WorkManager.getInstance(this).enqueueUniquePeriodicWork(
+                "rollover",
+                ExistingPeriodicWorkPolicy.KEEP,
+                PeriodicWorkRequestBuilder<RolloverWorker>(1, TimeUnit.DAYS).build(),
+            )
+        }.onFailure { Log.w("HabitApplication", "Could not schedule rollover backstop work", it) }
     }
 }
