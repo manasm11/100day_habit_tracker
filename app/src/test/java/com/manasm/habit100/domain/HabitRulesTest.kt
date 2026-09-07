@@ -64,12 +64,13 @@ class HabitRulesTest {
     }
 
     @Test fun never_twice_beats_budget_priority() {
-        // misses on days 2,4,6,8 (non-consecutive, done between), then 9 & 10 consecutive.
-        // total would be 6 but two-in-a-row fires first at day 10.
+        // done on days 1,3,5,7; today = day 11. Elapsed unmarked misses: 2,4,6,8,9,10.
+        // Day 8 is a miss (consecutive=1), day 9 is the 2nd consecutive miss -> fails at day 9.
+        // Total misses (5) never reaches the budget of 10, so never-twice is what fires.
         val done = intArrayOf(1, 3, 5, 7)
         val s = HabitRules.evaluate(input(done = done), nowForDay(11))
         assertEquals(FailureReason.TWO_IN_A_ROW, s.failureReason)
-        assertEquals(10, s.failedOnDay)
+        assertEquals(9, s.failedOnDay)
     }
 
     @Test fun eleventh_miss_fails_on_budget() {

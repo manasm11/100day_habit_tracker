@@ -26,11 +26,6 @@ object HabitRules {
         while (day <= lastDay) {
             val isDone = day in doneDays
             val isPast = day < currentDay
-
-            // A never-twice-in-a-row failure is sealed once the run of misses
-            // that triggered it ends (a done day, or the pending current day).
-            if (failureReason == FailureReason.TWO_IN_A_ROW && (isDone || !isPast)) break
-
             if (isDone) {
                 done++
                 consecutive = 0
@@ -41,15 +36,16 @@ object HabitRules {
                 consecutive++
                 streak = 0
                 if (consecutive >= 2) {
+                    // Spec §2.6: the attempt fails the moment a 2nd consecutive miss occurs.
                     failureReason = FailureReason.TWO_IN_A_ROW
                     failedOnDay = day
                 } else if (failureReason == null && misses > input.missBudget) {
                     failureReason = FailureReason.BUDGET_EXCEEDED
                     failedOnDay = day
-                    break
                 }
             }
             // else: current day, unmarked -> pending, not counted
+            if (failureReason != null) break
             day++
         }
 
