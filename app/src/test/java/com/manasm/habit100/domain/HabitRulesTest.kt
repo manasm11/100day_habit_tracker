@@ -89,4 +89,102 @@ class HabitRulesTest {
         assertEquals(10, s.missCount)
         assertEquals(0, s.missesLeft)
     }
+
+    // --- graduation ---
+
+    @Test fun graduates_when_day_100_marked_done_with_clean_record() {
+        val done = (1..100).toList().toIntArray()
+        val s = HabitRules.evaluate(input(done = done), nowForDay(100))
+        assertEquals(HabitState.GRADUATED, s.state)
+        assertEquals(100, s.doneCount)
+        assertEquals(100, s.bestStreak)
+        assertEquals(0, s.missCount)
+    }
+
+    @Test fun graduates_past_window_with_misses_within_budget() {
+        // done every day except days 10,20 (non-consecutive) ; today day 101
+        val done = (1..100).filter { it != 10 && it != 20 }.toIntArray()
+        val s = HabitRules.evaluate(input(done = done), nowForDay(101))
+        assertEquals(HabitState.GRADUATED, s.state)
+        assertEquals(2, s.missCount)
+    }
+
+    @Test fun day_100_implied_miss_still_graduates_if_not_two_in_row() {
+        // done days 1..99, today day 101 -> day 100 implied miss (1 total), day 99 done
+        val done = (1..99).toList().toIntArray()
+        val s = HabitRules.evaluate(input(done = done), nowForDay(101))
+        assertEquals(HabitState.GRADUATED, s.state)
+        assertEquals(1, s.missCount)
+    }
+
+    @Test fun day_99_and_100_both_missed_fails_two_in_row_on_100() {
+        val done = (1..98).toList().toIntArray()
+        val s = HabitRules.evaluate(input(done = done), nowForDay(101))
+        assertEquals(HabitState.FAILED, s.state)
+        assertEquals(FailureReason.TWO_IN_A_ROW, s.failureReason)
+        assertEquals(100, s.failedOnDay)
+    }
+
+    @Test fun day_100_today_unmarked_is_still_forming() {
+        val done = (1..99).toList().toIntArray()
+        val s = HabitRules.evaluate(input(done = done), nowForDay(100))
+        assertEquals(HabitState.FORMING, s.state)
+        assertEquals(true, s.canMarkToday)
+    }
+
+    @Test fun tuneup_track_length_30_graduates() {
+        val done = (1..30).toList().toIntArray()
+        val s = HabitRules.evaluate(input(trackLength = 30, done = done), nowForDay(30))
+        assertEquals(HabitState.GRADUATED, s.state)
+        assertEquals(30, s.effectiveDay)
+    }
+
+    // --- at-risk ---
+
+    @Test fun at_risk_when_yesterday_missed_and_today_unmarked() {
+        // today day 4; days 1..2 done, day 3 (yesterday) missed
+        val s = HabitRules.evaluate(input(done = intArrayOf(1, 2)), nowForDay(4))
+        assertEquals(HabitState.FORMING, s.state)
+        assertEquals(true, s.atRisk)
+    }
+
+    @Test fun not_at_risk_once_today_marked() {
+        val s = HabitRules.evaluate(input(done = intArrayOf(1, 2, 4)), nowForDay(4))
+        assertEquals(false, s.atRisk)
+    }
+
+    @Test fun not_at_risk_when_yesterday_was_done() {
+        val s = HabitRules.evaluate(input(done = intArrayOf(1, 2, 3)), nowForDay(4))
+        assertEquals(false, s.atRisk)
+    }
+
+    @Test fun not_at_risk_on_day_1() {
+        val s = HabitRules.evaluate(input(), nowForDay(1))
+        assertEquals(false, s.atRisk)
+    }
+
+    // --- best streak ---
+
+    @Test fun best_streak_is_longest_run_of_done() {
+        // done 1,2,3 (streak 3) miss 4, done 5,6 (streak 2), today 7
+        val s = HabitRules.evaluate(input(done = intArrayOf(1, 2, 3, 5, 6)), nowForDay(7))
+        assertEquals(3, s.bestStreak)
+    }
+
+    // --- DST + date-line ---
+
+    @Test fun day_number_survives_spring_dst_gap() {
+        val z = ZoneId.of("America/New_York")
+        val start = LocalDate.of(2026, 3, 7) // DST begins Mar 8, 2026
+        val now = LocalDate.of(2026, 3, 10).atTime(12, 0).atZone(z).toInstant()
+        assertEquals(4, currentDayNumber(start, z, now))
+    }
+
+    @Test fun day_number_uses_far_east_zone() {
+        val z = ZoneId.of("Pacific/Kiritimati") // UTC+14
+        val start = LocalDate.of(2026, 1, 1)
+        // 23:00 UTC Jan 1 == 13:00 Jan 2 in Kiritimati -> day 2
+        val now = LocalDate.of(2026, 1, 1).atTime(23, 0).atZone(ZoneId.of("UTC")).toInstant()
+        assertEquals(2, currentDayNumber(start, z, now))
+    }
 }
