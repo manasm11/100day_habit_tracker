@@ -25,7 +25,7 @@ class DevClockStore(private val context: Context) {
 
 /**
  * Wraps a base clock and adds a persisted offset. The offset is cached in memory and
- * refreshed whenever [refresh] is called (the Application observes the store and calls it).
+ * refreshed whenever [update] is called (the Application observes the store and calls it).
  */
 class DevClock(
     private val base: Clock,
