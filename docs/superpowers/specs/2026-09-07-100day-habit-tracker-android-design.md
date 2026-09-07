@@ -75,6 +75,8 @@ These rules are the whole point of the product. There must be zero ambiguity.
   the **day number** on which it failed.
 - On failure the app offers two actions: **restart the same habit fresh** (new track,
   new window) or **abandon** it (habit stays `failed`, forming slot is freed).
+  Abandoning moves the habit to status `abandoned` (excluded from all screens); the
+  forming slot is already free.
 
 ### 2.7 Miss-warning (at-risk) state — the single most important nudge
 
@@ -254,7 +256,7 @@ object HabitRules {
 | id                  | Long PK autogen | |
 | name                | String          | |
 | timeZoneId          | String          | IANA zone id, set at creation |
-| status              | String enum     | `forming` \| `mastered` \| `failed` \| `tuning_up` |
+| status              | String enum     | `forming` \| `mastered` \| `failed` \| `tuning_up` \| `abandoned` |
 | currentAttempt      | Int             | starts at 1; bumped on restart / tune-up |
 | attemptStartDate    | LocalDate       | day 1 of the current attempt, in `timeZoneId` |
 | attemptTrackLength  | Int             | 100 for forming, 30 for tune-up |

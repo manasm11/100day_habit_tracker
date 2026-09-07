@@ -1,20 +1,28 @@
 package com.manasm.habit100.domain
 
+import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Test
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
+import java.util.TimeZone
 
 class HabitRulesTest {
     private val z = ZoneId.of("America/New_York")
     private val start = LocalDate.of(2026, 1, 1)
+    private val jvmDefaultZone = TimeZone.getDefault()
+
+    @After fun restoreJvmZone() = TimeZone.setDefault(jvmDefaultZone)
 
     /** now = the moment described by [dayNumber] at 12:00 local. */
     private fun nowForDay(dayNumber: Int): Instant =
         dateForDay(start, dayNumber).atTime(12, 0).atZone(z).toInstant()
 
+    // `evaluate` derives misses positionally (any elapsed day not explicitly DONE) and ignores
+    // DayStatus.MISSED log entries by design — so `input()` only supplies DONE days.
     private fun input(trackLength: Int = 100, vararg done: Int) = RuleInput(
         startDate = start, zoneId = z, trackLength = trackLength,
         dayLogs = done.map { DayLog(it, DayStatus.DONE) },
@@ -137,6 +145,51 @@ class HabitRulesTest {
         val s = HabitRules.evaluate(input(trackLength = 30, done = done), nowForDay(30))
         assertEquals(HabitState.GRADUATED, s.state)
         assertEquals(30, s.effectiveDay)
+    }
+
+    @Test fun tuneup_fails_two_in_a_row_on_day_30() {
+        val done = (1..28).toList().toIntArray() // days 29, 30 both elapsed unmarked
+        val s = HabitRules.evaluate(input(trackLength = 30, done = done), nowForDay(31))
+        assertEquals(HabitState.FAILED, s.state)
+        assertEquals(FailureReason.TWO_IN_A_ROW, s.failureReason)
+        assertEquals(30, s.failedOnDay)
+    }
+
+    @Test fun tuneup_fails_on_budget() {
+        // done on odd days 1..21 -> misses 2,4,...,22 = 11, none consecutive
+        val done = (1..21 step 2).toList().toIntArray()
+        val s = HabitRules.evaluate(input(trackLength = 30, done = done), nowForDay(23))
+        assertEquals(HabitState.FAILED, s.state)
+        assertEquals(FailureReason.BUDGET_EXCEEDED, s.failureReason)
+        assertEquals(22, s.failedOnDay)
+    }
+
+    @Test fun eleventh_miss_that_is_also_second_consecutive_reports_two_in_a_row() {
+        // isolated misses on even days 2..18 (9), then days 20 & 21 missed -> misses 10 & 11
+        // are a consecutive pair. never-twice wins the tie over budget-exceeded.
+        val done = intArrayOf(1, 3, 5, 7, 9, 11, 13, 15, 17, 19)
+        val s = HabitRules.evaluate(input(done = done), nowForDay(22))
+        assertEquals(HabitState.FAILED, s.state)
+        assertEquals(FailureReason.TWO_IN_A_ROW, s.failureReason)
+        assertEquals(21, s.failedOnDay)
+        assertEquals(11, s.missCount)
+    }
+
+    @Test fun cannot_mark_today_past_the_window() {
+        val s = HabitRules.evaluate(input(), nowForDay(105))
+        assertFalse(s.canMarkToday)
+    }
+
+    @Test fun evaluate_uses_input_zone_not_jvm_default() {
+        TimeZone.setDefault(TimeZone.getTimeZone("Pacific/Honolulu")) // UTC-10
+        // 23:00 UTC Jan 1 == 13:00 Jan 2 in Kiritimati (UTC+14) -> day 2;
+        // in the JVM-default Honolulu zone it would still be Jan 1 -> day 1.
+        val now = LocalDate.of(2026, 1, 1).atTime(23, 0).atZone(ZoneId.of("UTC")).toInstant()
+        val ri = RuleInput(
+            startDate = start, zoneId = ZoneId.of("Pacific/Kiritimati"),
+            trackLength = 100, dayLogs = emptyList(),
+        )
+        assertEquals(2, HabitRules.evaluate(ri, now).currentDayNumber)
     }
 
     // --- at-risk ---

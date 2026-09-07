@@ -62,10 +62,50 @@ class HabitDaoTest {
         assertTrue(threw)
     }
 
+    @Test fun update_trigger_blocks_promoting_a_second_habit_into_the_active_slot() = runTest {
+        db.habitDao().insert(habit(status = "forming"))
+        val failedId = db.habitDao().insert(habit(status = "failed", attempt = 2))
+        var threw = false
+        try {
+            db.habitDao().update(db.habitDao().byId(failedId)!!.copy(status = "forming"))
+        } catch (e: android.database.sqlite.SQLiteException) { threw = true }
+        assertTrue(threw)
+        assertEquals("failed", db.habitDao().byId(failedId)!!.status)
+    }
+
+    @Test fun update_trigger_allows_legal_self_transition_of_the_active_habit() = runTest {
+        val id = db.habitDao().insert(habit(status = "forming"))
+        db.habitDao().update(db.habitDao().byId(id)!!.copy(status = "mastered"))
+        assertEquals("mastered", db.habitDao().byId(id)!!.status)
+    }
+
     @Test fun unacknowledged_graduation_query() = runTest {
         val id = db.habitDao().insert(habit(status = "mastered").copy(trophyAttempt = 1, graduationAcknowledged = false, graduatedAt = Instant.EPOCH))
         assertEquals(id, db.habitDao().observeUnacknowledgedGraduation().first()?.id)
         db.habitDao().update(db.habitDao().byId(id)!!.copy(graduationAcknowledged = true))
         assertNull(db.habitDao().observeUnacknowledgedGraduation().first())
+    }
+
+    @Test fun instant_and_localdate_round_trip_through_room() = runTest {
+        val created = Instant.parse("2026-02-03T04:05:06Z")
+        val started = LocalDate.of(2026, 2, 3)
+        val id = db.habitDao().insert(
+            habit().copy(createdAt = created, attemptStartDate = started),
+        )
+        val back = db.habitDao().byId(id)!!
+        assertEquals(created, back.createdAt)
+        assertEquals(started, back.attemptStartDate)
+    }
+
+    @Test fun checkin_second_insert_same_period_is_ignored() = runTest {
+        val id = db.habitDao().insert(habit(status = "mastered").copy(trophyAttempt = 1))
+        db.checkinDao().insert(
+            MaintenanceCheckinEntity(habitId = id, period = "2026-02", status = "strong", checkedAt = Instant.EPOCH),
+        )
+        db.checkinDao().insert(
+            MaintenanceCheckinEntity(habitId = id, period = "2026-02", status = "slipped", checkedAt = Instant.EPOCH.plusSeconds(60)),
+        )
+        val row = db.checkinDao().forPeriod(id, "2026-02")!!
+        assertEquals("strong", row.status)
     }
 }
