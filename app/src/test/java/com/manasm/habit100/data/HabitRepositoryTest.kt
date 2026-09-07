@@ -120,6 +120,40 @@ class HabitRepositoryTest {
         assertTrue(repo.canStartNew())
     }
 
+    @Test fun start_tune_up_moves_slipped_mastered_habit_back_into_forming_slot() = runTest {
+        repo.createHabit("Read", zone)
+        val id = repo.observeActive().first()!!.habit.id
+        repeat(100) { repo.markTodayDone(id); clock.advanceDays(1) }
+        assertEquals("mastered", db.habitDao().byId(id)!!.status)
+        repo.reportSlip(id)
+
+        repo.startTuneUp(id)
+
+        val active = repo.observeActive().first()!!
+        assertEquals(id, active.habit.id)
+        assertEquals("tuning_up", active.habit.status)
+        assertEquals(30, active.habit.attemptTrackLength)
+        assertEquals(2, active.habit.currentAttempt)
+        assertEquals(1, active.habit.trophyAttempt)
+        assertFalse(repo.canStartNew())
+    }
+
+    @Test fun start_tune_up_is_rejected_when_the_forming_slot_is_busy() = runTest {
+        repo.createHabit("A", zone)
+        val id = repo.observeActive().first()!!.habit.id
+        repeat(100) { repo.markTodayDone(id); clock.advanceDays(1) }
+        repo.reportSlip(id)
+        repo.createHabit("B", zone)
+
+        try {
+            repo.startTuneUp(id)
+            fail("expected IllegalStateException")
+        } catch (e: IllegalStateException) {
+            // expected — one habit at a time
+        }
+        assertEquals("mastered", db.habitDao().byId(id)!!.status)
+    }
+
     @Test fun failed_state_still_computable_from_snapshot() = runTest {
         repo.createHabit("Read", zone)
         val id = repo.observeActive().first()!!.habit.id

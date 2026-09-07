@@ -203,6 +203,30 @@ class HabitRepository(
 
     suspend fun reportSlip(habitId: Long) = checkIn(habitId, strong = false)
 
+    /**
+     * Begins a 30-day tune-up for a slipped mastered habit. Moves it back into the forming
+     * slot (`tuning_up`), bumping the attempt counter and shortening the track to 30 days.
+     * The trophy attempt is left untouched, so the habit stays on the mastered shelf.
+     * Task 18 owns the tune-up tracker/graduation lifecycle.
+     */
+    suspend fun startTuneUp(habitId: Long) {
+        db.withTransaction {
+            val habit = habitDao.byId(habitId) ?: return@withTransaction
+            check(habit.status == "mastered") { "Only a mastered habit can tune up" }
+            check(habit.slipped) { "Habit is not slipped" }
+            check(habitDao.activeCount() == 0) { "A habit is already forming" }
+            val zone = ZoneId.of(habit.timeZoneId)
+            habitDao.update(
+                habit.copy(
+                    status = "tuning_up",
+                    currentAttempt = habit.currentAttempt + 1,
+                    attemptStartDate = clock.now().atZone(zone).toLocalDate(),
+                    attemptTrackLength = 30,
+                )
+            )
+        }
+    }
+
     /** The mastered-habit shelf: one [MasteredHabitRow] per graduated habit, newest first. */
     fun observeMastered(): Flow<List<MasteredHabitRow>> =
         combine(habitDao.observeMastered(), habitDao.observeActive()) { mastered, active ->

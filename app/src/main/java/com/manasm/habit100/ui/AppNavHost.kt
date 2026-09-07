@@ -1,6 +1,5 @@
 package com.manasm.habit100.ui
 
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
@@ -15,6 +14,8 @@ import com.manasm.habit100.ui.graduation.GraduationScreen
 import com.manasm.habit100.ui.graduation.GraduationViewModel
 import com.manasm.habit100.ui.newhabit.NewHabitScreen
 import com.manasm.habit100.ui.newhabit.NewHabitViewModel
+import com.manasm.habit100.ui.shelf.ShelfScreen
+import com.manasm.habit100.ui.shelf.ShelfViewModel
 import com.manasm.habit100.ui.tracker.TrackerScreen
 import com.manasm.habit100.ui.tracker.TrackerViewModel
 
@@ -83,6 +84,9 @@ fun AppNavHost(container: AppContainer) {
                 },
             )
         }
-        composable(Routes.SHELF) { Text("shelf") }
+        composable(Routes.SHELF) {
+            val vm: ShelfViewModel = viewModel(factory = HabitViewModelFactory(container))
+            ShelfScreen(vm = vm, onBack = { nav.popBackStack() })
+        }
     }
 }

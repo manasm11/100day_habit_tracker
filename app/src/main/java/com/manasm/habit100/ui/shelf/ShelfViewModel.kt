@@ -1,14 +1,72 @@
 package com.manasm.habit100.ui.shelf
 
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import com.manasm.habit100.data.HabitRepository
+import com.manasm.habit100.data.MasteredHabitRow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 
 /**
- * Stub for Task 9 wiring. State and behaviour are added in a later task.
+ * State for the mastered shelf: one [ShelfRow] per graduated habit with its monthly
+ * maintenance badge, plus the [FormingNow] footer that enforces the one-at-a-time rule.
  * Constructor signature is load-bearing for [com.manasm.habit100.ui.HabitViewModelFactory].
  */
 class ShelfViewModel(
     private val repo: HabitRepository,
 ) : ViewModel() {
-    // TODO(task-15): shelf screen state
+
+    val rows: StateFlow<List<ShelfRow>> = repo.observeMastered()
+        .map { list -> list.map { it.toRow() } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    val masteredCount: StateFlow<Int> = rows
+        .map { it.size }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
+
+    val formingNow: StateFlow<FormingNow?> = repo.observeActive()
+        .map { a ->
+            a?.let {
+                FormingNow(
+                    name = it.habit.name,
+                    dayNumber = it.snapshot.currentDayNumber.coerceAtMost(it.habit.attemptTrackLength),
+                    trackLength = it.habit.attemptTrackLength,
+                    missesLeft = it.snapshot.missesLeft,
+                    progress = it.snapshot.effectiveDay.toFloat() / it.habit.attemptTrackLength,
+                )
+            }
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    fun confirm(id: Long) = viewModelScope.launch { repo.checkIn(id, strong = true) }
+
+    fun slip(id: Long) = viewModelScope.launch { repo.reportSlip(id) }
+
+    fun startTuneUp(id: Long) = viewModelScope.launch { runCatching { repo.startTuneUp(id) } }
+}
+
+private fun MasteredHabitRow.toRow(): ShelfRow {
+    val badge = when {
+        slipped -> Badge.SLIPPED
+        checkInDue -> Badge.CHECK_IN
+        else -> Badge.GOING_STRONG
+    }
+    val subtitle = when {
+        slipped -> "Slipped — lock it back in"
+        maintenanceStreakMonths > 0 -> "$maintenanceStreakMonths month streak"
+        habit.graduatedAt != null -> "Graduated"
+        else -> ""
+    }
+    return ShelfRow(
+        id = habit.id,
+        name = habit.name,
+        cells = trophyCells,
+        badge = badge,
+        subtitle = subtitle,
+        slipped = slipped,
+        canTuneUp = slipped && slotFree && habit.status == "mastered",
+    )
 }
