@@ -57,10 +57,11 @@ fun GraduationScreen(
         verticalArrangement = Arrangement.spacedBy(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
+        val subHeadline = if (u.isTuneUp) "Tuned back up" else "It's a habit now"
         Text("✓", style = MaterialTheme.typography.displayMedium, color = HabitColors.done)
-        Text("100 days complete", style = MaterialTheme.typography.titleMedium)
+        Text("${u.trackLength} days complete", style = MaterialTheme.typography.titleMedium)
         Text(
-            "It's a habit now",
+            subHeadline,
             style = MaterialTheme.typography.headlineMedium,
             fontWeight = FontWeight.Bold,
             textAlign = TextAlign.Center,
@@ -94,7 +95,11 @@ fun GraduationScreen(
 
         TextButton(
             onClick = {
-                shareGrid(context, u.cells, "${u.name}: 100 days. It's a habit now.")
+                shareGrid(
+                    context,
+                    u.cells,
+                    "${u.name}: ${u.trackLength} days. $subHeadline.",
+                )
             },
         ) {
             Text("Share", style = MaterialTheme.typography.labelMedium)

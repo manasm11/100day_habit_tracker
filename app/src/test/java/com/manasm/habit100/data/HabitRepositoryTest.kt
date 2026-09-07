@@ -111,12 +111,14 @@ class HabitRepositoryTest {
         repo.createHabit("Read", zone)
         val id = repo.observeActive().first()!!.habit.id
         repeat(100) { repo.markTodayDone(id); clock.advanceDays(1) }
-        val (h, logs) = repo.trophyView(id)!!
-        assertEquals("mastered", h.status)
+        val tv = repo.trophyView(id)!!
+        assertEquals("mastered", tv.habit.status)
         assertEquals(
             100,
-            logs.count { it.status == com.manasm.habit100.domain.DayStatus.DONE },
+            tv.logs.count { it.status == com.manasm.habit100.domain.DayStatus.DONE },
         )
+        assertEquals(100, tv.trackLength)
+        assertFalse(tv.isTuneUp)
         assertTrue(repo.canStartNew())
     }
 
@@ -171,11 +173,13 @@ class HabitRepositoryTest {
         assertNull(h.failureReason)
         assertNull(h.failedOnDay)
 
-        val (_, logs) = repo.trophyView(id)!!
+        val tv = repo.trophyView(id)!!
         assertEquals(
             100,
-            logs.count { it.status == com.manasm.habit100.domain.DayStatus.DONE },
+            tv.logs.count { it.status == com.manasm.habit100.domain.DayStatus.DONE },
         )
+        assertEquals(100, tv.trackLength)
+        assertTrue(tv.isTuneUp)
         assertNull(repo.observeActive().first())   // slot free again
     }
 
@@ -196,6 +200,7 @@ class HabitRepositoryTest {
         assertNull(h.failedOnDay)
         assertEquals(2, h.currentAttempt)
         assertEquals(1, h.trophyAttempt)
+        assertTrue(h.graduationAcknowledged)      // no stale graduation screen after a failed tune-up
 
         val rows = repo.observeMastered().first()
         val row = rows.single { it.habit.id == id }

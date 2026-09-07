@@ -123,6 +123,9 @@ class HabitRepository(
                         slipped = wasTuneUp,
                         failureReason = if (wasTuneUp) null else snap.failureReason?.name,
                         failedOnDay = if (wasTuneUp) null else snap.failedOnDay,
+                        // A failed tune-up returns to mastered; make sure no stale unacknowledged
+                        // graduation screen can resurface for it (I6).
+                        graduationAcknowledged = if (wasTuneUp) true else habit.graduationAcknowledged,
                     )
                 )
             }
@@ -134,11 +137,15 @@ class HabitRepository(
      * The mastered habit plus its trophy-attempt day logs, for the graduation / trophy screens.
      * Falls back to the current attempt when no trophy attempt has been stamped yet.
      */
-    suspend fun trophyView(habitId: Long): Pair<HabitEntity, List<DayLog>>? {
+    suspend fun trophyView(habitId: Long): TrophyView? {
         val habit = habitDao.byId(habitId) ?: return null
         val attempt = habit.trophyAttempt ?: habit.currentAttempt
+        // The trophy attempt is always the original graduating attempt (applyTransitionLocked
+        // only ever stamps trophyAttempt from a non-tuneup currentAttempt), so its length is 100;
+        // fall back to attemptTrackLength when no trophy has been stamped yet.
+        val trackLength = if (habit.trophyAttempt != null) 100 else habit.attemptTrackLength
         val logs = dayLogDao.forAttempt(habit.id, attempt).map { it.toDayLog() }
-        return habit to logs
+        return TrophyView(habit, logs, trackLength, isTuneUp = habit.currentAttempt != attempt)
     }
 
     /** True when no habit is currently forming, i.e. the user may start a new one. */

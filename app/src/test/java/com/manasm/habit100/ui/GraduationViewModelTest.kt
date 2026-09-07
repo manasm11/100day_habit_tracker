@@ -75,6 +75,34 @@ class GraduationViewModelTest {
         assertEquals(60, ui.bestStreak)
     }
 
+    @Test fun tune_up_graduation_shows_the_original_100_day_trophy_board() = runTest {
+        repo.createHabit("Read", zone)
+        val id = repo.observeActive().first()!!.habit.id
+        // Original 100-day attempt: mark all but day 10 and day 40 (two non-consecutive misses).
+        repeat(100) { i ->
+            val day = i + 1
+            if (day != 10 && day != 40) repo.markTodayDone(id)
+            clock.advanceDays(1)
+        }
+        assertEquals("mastered", db.habitDao().byId(id)!!.status)
+
+        repo.reportSlip(id)
+        repo.startTuneUp(id)
+        repeat(30) { repo.markTodayDone(id); clock.advanceDays(1) }
+        assertEquals("mastered", db.habitDao().byId(id)!!.status)
+
+        val vm = gradVm(id)
+        val ui = vm.ui.filterNotNull().first()
+
+        assertEquals(100, ui.trackLength)
+        assertTrue(ui.isTuneUp)
+        assertEquals(98, ui.daysDone)
+        assertEquals(2, ui.missesUsed)
+        assertEquals(100, ui.cells.size)
+        assertEquals(2, ui.cells.count { it == CellState.MISSED })
+        assertEquals(98, ui.cells.count { it == CellState.DONE })
+    }
+
     @Test fun start_next_and_keep_going_both_acknowledge() = runTest {
         repo.createHabit("Read", zone)
         val id = repo.observeActive().first()!!.habit.id
