@@ -42,17 +42,27 @@ class TrackerViewModel(
             repo.observeFailedHabitFlow(),
             refreshTicker,
         ) { active, graduated, failed, _ ->
-            // If the fresh snapshot says the active attempt is over, persist the transition.
-            // A follow-up emission then routes to Graduated / Failed. Rollover normally does
-            // this; here we cover the "clock advanced, nothing wrote to the DB" path.
-            if (active != null) {
+            // Pure mapping: reflect whatever the DB currently says. Terminal-state
+            // reconciliation happens in the init{} collector below.
+            buildState(active, graduated, failed)
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), TrackerUiState.Loading)
+
+    init {
+        // Persist a terminal transition when the fresh snapshot of the active attempt says
+        // it is over but nothing has written to the DB (e.g. the clock advanced past a miss).
+        // Once persisted, observeActive emits null and the graduation / failed flows drive
+        // the state. Rollover normally does this.
+        // TODO(task-14): remove once the rollover engine runs on ON_START / periodic.
+        viewModelScope.launch {
+            combine(repo.observeActive(), refreshTicker) { active, _ -> active }.collect { active ->
+                if (active == null) return@collect
                 val snap = repo.snapshotOf(active.habit, active.logs)
                 if (snap.state != HabitState.FORMING) {
                     runCatching { repo.applyTransition(active.habit.id) }
                 }
             }
-            buildState(active, graduated, failed)
-        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), TrackerUiState.Loading)
+        }
+    }
 
     private fun buildState(
         active: ActiveHabit?,
