@@ -3,12 +3,18 @@ package com.manasm.habit100.data
 import androidx.room.withTransaction
 import com.manasm.habit100.clock.Clock
 import com.manasm.habit100.domain.DayLog
+import com.manasm.habit100.domain.DayStatus
 import com.manasm.habit100.domain.HabitRules
 import com.manasm.habit100.domain.HabitState
 import com.manasm.habit100.domain.RuleSnapshot
 import com.manasm.habit100.domain.dateForDay
+import com.manasm.habit100.domain.isCheckInDue
+import com.manasm.habit100.domain.maintenanceStreakMonths
+import com.manasm.habit100.domain.periodOf
+import com.manasm.habit100.ui.gridCells
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
@@ -159,6 +165,73 @@ class HabitRepository(
                     failureReason = null,
                     failedOnDay = null,
                 )
+            )
+        }
+    }
+
+    /**
+     * Records this month's maintenance check-in for a mastered habit. A "slipped" check-in
+     * also raises the habit's [HabitEntity.slipped] flag. The insert uses
+     * [androidx.room.OnConflictStrategy.IGNORE] against a UNIQUE(habitId, period), so the first
+     * check-in in a calendar month wins and later ones that month are ignored.
+     */
+    suspend fun checkIn(habitId: Long, strong: Boolean) {
+        val habit = habitDao.byId(habitId) ?: return
+        val period = periodOf(ZoneId.of(habit.timeZoneId), clock.now())
+        checkinDao.insert(
+            MaintenanceCheckinEntity(
+                habitId = habitId,
+                period = period,
+                status = if (strong) "strong" else "slipped",
+                checkedAt = clock.now(),
+            )
+        )
+        if (!strong) habitDao.update(habit.copy(slipped = true))
+    }
+
+    suspend fun reportSlip(habitId: Long) = checkIn(habitId, strong = false)
+
+    /** The mastered-habit shelf: one [MasteredHabitRow] per graduated habit, newest first. */
+    fun observeMastered(): Flow<List<MasteredHabitRow>> =
+        combine(habitDao.observeMastered(), habitDao.observeActive()) { mastered, active ->
+            mastered to (active == null)
+        }.flatMapLatest { (mastered, slotFree) ->
+            if (mastered.isEmpty()) {
+                flowOf(emptyList())
+            } else {
+                combine(mastered.map { habit -> masteredRowFlow(habit, slotFree) }) { rows ->
+                    rows.toList()
+                }
+            }
+        }
+
+    private fun masteredRowFlow(habit: HabitEntity, slotFree: Boolean): Flow<MasteredHabitRow> {
+        val trophyAttempt = habit.trophyAttempt ?: habit.currentAttempt
+        return combine(
+            dayLogDao.observeForAttempt(habit.id, trophyAttempt),
+            checkinDao.observeForHabit(habit.id),
+        ) { logRows, checkins ->
+            val logs = logRows.map { it.toDayLog() }
+            val done = logs.filter { it.status == DayStatus.DONE }.map { it.dayNumber }.toSet()
+            // Positional misses: rollover may graduate without ever materializing MISSED rows,
+            // so any day 1..100 not explicitly DONE is an honest red miss on the thumbnail
+            // (same reasoning as GraduationViewModel).
+            val missed = (1..100).filterNot { it in done }.toSet()
+            val period = periodOf(ZoneId.of(habit.timeZoneId), clock.now())
+            val checkinPeriods = checkins.map { it.period }.toSet()
+            val strongPeriods = checkins.filter { it.status == "strong" }.map { it.period }.toSet()
+            MasteredHabitRow(
+                habit = habit,
+                trophyCells = gridCells(
+                    trackLength = 100,
+                    currentDay = 101,
+                    doneDays = done,
+                    missedDays = missed,
+                ),
+                checkInDue = isCheckInDue(period, checkinPeriods) && habit.status == "mastered",
+                maintenanceStreakMonths = maintenanceStreakMonths(period, strongPeriods),
+                slipped = habit.slipped,
+                slotFree = slotFree,
             )
         }
     }
