@@ -154,6 +154,73 @@ class HabitRepositoryTest {
         assertEquals("mastered", db.habitDao().byId(id)!!.status)
     }
 
+    @Test fun graduating_a_tune_up_returns_to_mastered_and_keeps_the_original_trophy() = runTest {
+        repo.createHabit("Read", zone)
+        val id = repo.observeActive().first()!!.habit.id
+        repeat(100) { repo.markTodayDone(id); clock.advanceDays(1) }
+        repo.reportSlip(id)
+        repo.startTuneUp(id)
+        repeat(30) { repo.markTodayDone(id); clock.advanceDays(1) }
+
+        val h = db.habitDao().byId(id)!!
+        assertEquals("mastered", h.status)
+        assertFalse(h.slipped)
+        assertEquals(1, h.trophyAttempt)          // still the original 100-day board
+        assertEquals(2, h.currentAttempt)
+        assertFalse(h.graduationAcknowledged)      // tune-up graduation also shows the trophy screen
+        assertNull(h.failureReason)
+        assertNull(h.failedOnDay)
+
+        val (_, logs) = repo.trophyView(id)!!
+        assertEquals(
+            100,
+            logs.count { it.status == com.manasm.habit100.domain.DayStatus.DONE },
+        )
+        assertNull(repo.observeActive().first())   // slot free again
+    }
+
+    @Test fun failing_a_tune_up_returns_to_mastered_with_no_stale_failure() = runTest {
+        repo.createHabit("Read", zone)
+        val id = repo.observeActive().first()!!.habit.id
+        repeat(100) { repo.markTodayDone(id); clock.advanceDays(1) }
+        repo.reportSlip(id)
+        repo.startTuneUp(id)
+        repo.markTodayDone(id)                     // tune-up day 1
+        clock.advanceDays(3)                       // days 2, 3 missed -> two in a row
+        repo.applyTransition(id)
+
+        val h = db.habitDao().byId(id)!!
+        assertEquals("mastered", h.status)         // a failed tune-up returns to mastered
+        assertTrue(h.slipped)                      // still flagged - user can try another tune-up
+        assertNull(h.failureReason)                // THE FIX - no stale failure on a mastered habit
+        assertNull(h.failedOnDay)
+        assertEquals(2, h.currentAttempt)
+        assertEquals(1, h.trophyAttempt)
+
+        val rows = repo.observeMastered().first()
+        val row = rows.single { it.habit.id == id }
+        assertTrue(row.slipped)
+        assertTrue(row.slotFree)                   // tune-up eligible again
+    }
+
+    @Test fun a_second_tune_up_can_start_after_a_failed_one() = runTest {
+        repo.createHabit("Read", zone)
+        val id = repo.observeActive().first()!!.habit.id
+        repeat(100) { repo.markTodayDone(id); clock.advanceDays(1) }
+        repo.reportSlip(id)
+        repo.startTuneUp(id)
+        repo.markTodayDone(id)
+        clock.advanceDays(3)
+        repo.applyTransition(id)
+
+        repo.startTuneUp(id)
+
+        val h = db.habitDao().byId(id)!!
+        assertEquals("tuning_up", h.status)
+        assertEquals(3, h.currentAttempt)
+        assertEquals(30, h.attemptTrackLength)
+    }
+
     @Test fun failed_state_still_computable_from_snapshot() = runTest {
         repo.createHabit("Read", zone)
         val id = repo.observeActive().first()!!.habit.id
