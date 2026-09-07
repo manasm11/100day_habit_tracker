@@ -12,7 +12,7 @@ data class HabitEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val name: String,
     val timeZoneId: String,
-    val status: String,              // forming | mastered | failed | tuning_up
+    val status: String,              // forming | mastered | failed | tuning_up | abandoned
     val currentAttempt: Int,
     val attemptStartDate: LocalDate,
     val attemptTrackLength: Int,

@@ -39,7 +39,11 @@ fun shareGrid(context: Context, cells: List<CellState>, caption: String) {
 
     runCatching {
         val dir = File(context.cacheDir, "shared").apply { mkdirs() }
-        val file = File(dir, "grid.png")
+        // Unique name per share so a chooser holding a stale URI can't re-send an old grid;
+        // cacheDir is OS-managed so leftover files get reclaimed under pressure.
+        val cutoff = System.currentTimeMillis() - 5 * 60_000
+        dir.listFiles()?.forEach { if (it.lastModified() < cutoff) it.delete() }
+        val file = File(dir, "grid-${System.currentTimeMillis()}.png")
         file.outputStream().use { bmp.compress(Bitmap.CompressFormat.PNG, 100, it) }
         val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
         val send = Intent(Intent.ACTION_SEND).apply {

@@ -14,6 +14,7 @@ data class ShelfRow(
     val subtitle: String,
     val slipped: Boolean,
     val canTuneUp: Boolean,       // slipped, mastered, and the forming slot is free
+    val tuneUpInProgress: Boolean, // this habit's own tune-up is currently running
 )
 
 /** The "Forming now" footer — the single habit currently in the forming/tune-up slot. */

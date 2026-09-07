@@ -199,7 +199,8 @@ private fun ShelfRowItem(
                 if (!row.canTuneUp) {
                     Spacer(Modifier.height(4.dp))
                     Text(
-                        "Finish the habit you're forming first.",
+                        if (row.tuneUpInProgress) "Tune-up in progress"
+                        else "Finish the habit you're forming first.",
                         style = MaterialTheme.typography.bodySmall,
                     )
                 }

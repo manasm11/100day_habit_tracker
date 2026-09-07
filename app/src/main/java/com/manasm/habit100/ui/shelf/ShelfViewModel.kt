@@ -77,5 +77,6 @@ private fun MasteredHabitRow.toRow(): ShelfRow {
         subtitle = subtitle,
         slipped = slipped,
         canTuneUp = slipped && slotFree && habit.status == "mastered",
+        tuneUpInProgress = habit.status == "tuning_up",
     )
 }

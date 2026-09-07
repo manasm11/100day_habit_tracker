@@ -1,6 +1,7 @@
 package com.manasm.habit100.rollover
 
 import android.content.Context
+import android.util.Log
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.manasm.habit100.HabitApplication
@@ -11,12 +12,12 @@ import com.manasm.habit100.HabitApplication
  */
 class RolloverWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(ctx, params) {
     override suspend fun doWork(): Result {
-        val container = (applicationContext as HabitApplication).container
         return try {
-            container.runRolloverNow()
+            val app = applicationContext as HabitApplication
+            app.container.runRolloverNow()
             Result.success()
         } catch (e: Exception) {
-            android.util.Log.w("RolloverWorker", "rollover failed; will retry", e)
+            Log.w("RolloverWorker", "rollover failed; will retry", e)
             Result.retry()
         }
     }

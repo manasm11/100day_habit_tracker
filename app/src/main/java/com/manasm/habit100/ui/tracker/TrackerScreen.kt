@@ -17,6 +17,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -25,6 +26,9 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -37,6 +41,7 @@ import com.manasm.habit100.ui.GridSize
 import com.manasm.habit100.ui.HabitGrid
 import com.manasm.habit100.ui.components.StatCard
 import com.manasm.habit100.ui.theme.HabitColors
+import java.time.LocalDate
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -61,20 +66,55 @@ fun TrackerScreen(
             actions = { TextButton(onClick = onOpenShelf) { Text("Mastered") } },
         )
     }) { pad ->
-        Box(
+        Column(
             Modifier
                 .padding(pad)
                 .fillMaxSize()
                 .padding(20.dp)
         ) {
-            when (val s = state) {
-                TrackerUiState.Loading -> Unit
-                TrackerUiState.Empty -> EmptyState(onStartHabit)
-                is TrackerUiState.Graduated -> Unit // routed away by LaunchedEffect
-                is TrackerUiState.Failed -> FailedState(s, vm)
-                is TrackerUiState.Forming -> FormingContent(s, vm)
+            val s = state
+            Box(Modifier.weight(1f).fillMaxWidth()) {
+                when (s) {
+                    TrackerUiState.Loading -> Unit
+                    TrackerUiState.Empty -> EmptyState(onStartHabit)
+                    is TrackerUiState.Graduated -> Unit // routed away by LaunchedEffect
+                    is TrackerUiState.Failed -> FailedState(s, vm)
+                    is TrackerUiState.Forming -> FormingContent(s, vm)
+                }
+            }
+            // Dev panel: available in Empty / Forming / Failed (Graduated routes away).
+            if (BuildConfig.DEBUG && s !is TrackerUiState.Graduated && s != TrackerUiState.Loading) {
+                DevPanel(vm)
             }
         }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun DevPanel(vm: TrackerViewModel) {
+    var dateText by rememberSaveable { mutableStateOf("") }
+    Column(
+        Modifier.fillMaxWidth().padding(top = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedButton(onClick = vm::devAdvanceDay) { Text("dev: +1 day") }
+            OutlinedButton(
+                onClick = {
+                    runCatching { LocalDate.parse(dateText.trim()) }
+                        .getOrNull()
+                        ?.let(vm::devSetToday)
+                },
+            ) { Text("dev: set date") }
+        }
+        OutlinedTextField(
+            value = dateText,
+            onValueChange = { dateText = it },
+            singleLine = true,
+            label = { Text("yyyy-MM-dd") },
+            modifier = Modifier.fillMaxWidth(),
+        )
     }
 }
 
@@ -173,10 +213,6 @@ private fun FormingContent(s: TrackerUiState.Forming, vm: TrackerViewModel) {
                     style = MaterialTheme.typography.bodySmall,
                 )
             }
-        }
-
-        if (BuildConfig.DEBUG) {
-            OutlinedButton(onClick = vm::devAdvanceDay) { Text("dev: +1 day") }
         }
     }
 }

@@ -12,8 +12,12 @@ import androidx.lifecycle.ViewModel
  * suite output. There is no public API for this, hence the internal-method reflection.
  */
 fun ViewModel.clearForTest() {
-    ViewModel::class.java
-        .getDeclaredMethod("clear\$lifecycle_viewmodel_release")
-        .apply { isAccessible = true }
-        .invoke(this)
+    runCatching {
+        ViewModel::class.java
+            .getDeclaredMethod("clear\$lifecycle_viewmodel_release")
+            .apply { isAccessible = true }
+            .invoke(this)
+    }.onFailure {
+        error("ViewModels.clearForTest needs updating for this androidx.lifecycle version: ${it.message}")
+    }
 }

@@ -47,11 +47,4 @@ object HabitDatabaseTestHooks {
             queryExecutor.shutdownNow()
         }
     }
-
-    /** Convenience for tests that manage their own `@After close()`. */
-    fun inMemory(context: Context = ApplicationProvider.getApplicationContext()): HabitDatabase =
-        Room.inMemoryDatabaseBuilder(context, HabitDatabase::class.java)
-            .allowMainThreadQueries()
-            .addCallback(callback())
-            .build()
 }

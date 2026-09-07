@@ -22,8 +22,8 @@ if [ ! -x "${GRADLE_DIR}/bin/gradle" ]; then
   echo ">> Downloading Gradle ${GRADLE_VERSION}"
   curl -fsSL -o /tmp/gradle.zip \
     "https://services.gradle.org/distributions/gradle-${GRADLE_VERSION}-bin.zip"
-  rm -rf "${GRADLE_DIR}" && mkdir -p /tmp/gradle-x
-  unzip -q /tmp/gradle.zip -d /tmp/gradle-x
+  rm -rf "${GRADLE_DIR}" /tmp/gradle-x && mkdir -p /tmp/gradle-x
+  unzip -qo /tmp/gradle.zip -d /tmp/gradle-x
   mv "/tmp/gradle-x/gradle-${GRADLE_VERSION}" "${GRADLE_DIR}"
 fi
 
@@ -35,7 +35,7 @@ if [ ! -d "${SDK_DIR}/cmdline-tools/latest" ]; then
   curl -fsSL -o /tmp/cmdline-tools.zip \
     "https://dl.google.com/android/repository/${CMDLINE_TOOLS_ZIP}"
   rm -rf /tmp/cmdline-tools-x && mkdir -p /tmp/cmdline-tools-x
-  unzip -q /tmp/cmdline-tools.zip -d /tmp/cmdline-tools-x
+  unzip -qo /tmp/cmdline-tools.zip -d /tmp/cmdline-tools-x
   mkdir -p "${SDK_DIR}/cmdline-tools"
   mv /tmp/cmdline-tools-x/cmdline-tools "${SDK_DIR}/cmdline-tools/latest"
 fi
@@ -55,5 +55,7 @@ export JAVA_HOME="${JDK_DIR}"
 export ANDROID_HOME="${SDK_DIR}"
 export PATH="\${JAVA_HOME}/bin:${GRADLE_DIR}/bin:\${PATH}"
 EOF
+
+rm -f /tmp/jdk17.tar.gz /tmp/gradle.zip /tmp/cmdline-tools.zip
 
 echo ">> Done. Run: source scripts/env.sh"
