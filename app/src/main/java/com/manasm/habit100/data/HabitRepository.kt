@@ -171,22 +171,34 @@ class HabitRepository(
 
     /**
      * Records this month's maintenance check-in for a mastered habit. A "slipped" check-in
-     * also raises the habit's [HabitEntity.slipped] flag. The insert uses
-     * [androidx.room.OnConflictStrategy.IGNORE] against a UNIQUE(habitId, period), so the first
-     * check-in in a calendar month wins and later ones that month are ignored.
+     * also raises the habit's [HabitEntity.slipped] flag.
+     *
+     * One row per (habit, period). A slip is sticky: a same-month slip after a "strong"
+     * check-in overwrites the row to "slipped" (§2.10 — the slip must take effect), while a
+     * "strong" check-in never overwrites an existing "slipped" row. Strong-when-strong and
+     * slip-when-slipped are no-ops.
      */
     suspend fun checkIn(habitId: Long, strong: Boolean) {
-        val habit = habitDao.byId(habitId) ?: return
-        val period = periodOf(ZoneId.of(habit.timeZoneId), clock.now())
-        checkinDao.insert(
-            MaintenanceCheckinEntity(
-                habitId = habitId,
-                period = period,
-                status = if (strong) "strong" else "slipped",
-                checkedAt = clock.now(),
-            )
-        )
-        if (!strong) habitDao.update(habit.copy(slipped = true))
+        db.withTransaction {
+            val habit = habitDao.byId(habitId) ?: return@withTransaction
+            if (habit.status != "mastered") return@withTransaction
+            val period = periodOf(ZoneId.of(habit.timeZoneId), clock.now())
+            val status = if (strong) "strong" else "slipped"
+            val existing = checkinDao.forPeriod(habitId, period)
+            when {
+                existing == null -> checkinDao.insert(
+                    MaintenanceCheckinEntity(
+                        habitId = habitId,
+                        period = period,
+                        status = status,
+                        checkedAt = clock.now(),
+                    )
+                )
+                !strong && existing.status == "strong" ->
+                    checkinDao.update(existing.copy(status = "slipped", checkedAt = clock.now()))
+            }
+            if (!strong) habitDao.update(habit.copy(slipped = true))
+        }
     }
 
     suspend fun reportSlip(habitId: Long) = checkIn(habitId, strong = false)

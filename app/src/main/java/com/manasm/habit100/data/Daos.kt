@@ -48,6 +48,8 @@ interface DayLogDao {
 interface CheckinDao {
     @Insert(onConflict = OnConflictStrategy.IGNORE) suspend fun insert(c: MaintenanceCheckinEntity): Long
 
+    @Update suspend fun update(c: MaintenanceCheckinEntity)
+
     @Query("SELECT * FROM maintenance_checkins WHERE habitId = :habitId AND period = :period LIMIT 1")
     suspend fun forPeriod(habitId: Long, period: String): MaintenanceCheckinEntity?
 

@@ -66,6 +66,22 @@ class MaintenanceTest {
         assertFalse(row.slipped)
     }
 
+    @Test fun same_month_slip_overrides_a_prior_strong_check_in() = runTest {
+        val id = graduatedHabitId()
+        repo.checkIn(id, strong = true)
+        var row = repo.observeMastered().first().single()
+        assertEquals(1, row.maintenanceStreakMonths)
+        assertFalse(row.checkInDue)
+
+        repo.reportSlip(id) // same calendar month
+        val period = com.manasm.habit100.domain.periodOf(zone, clock.now())
+        assertEquals("slipped", db.checkinDao().forPeriod(id, period)!!.status)
+
+        row = repo.observeMastered().first().single()
+        assertTrue(row.slipped)
+        assertEquals(0, row.maintenanceStreakMonths)
+    }
+
     // reportSlip is done in isolation (no prior check-in this month) so the
     // OnConflictStrategy.IGNORE against UNIQUE(habitId, period) does not swallow it.
     @Test fun report_slip_sets_flag_and_writes_slipped_checkin() = runTest {
