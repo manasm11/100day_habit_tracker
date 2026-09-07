@@ -121,8 +121,8 @@ class HabitRepository(
                     habit.copy(
                         status = if (wasTuneUp) "mastered" else "failed",
                         slipped = wasTuneUp,
-                        failureReason = snap.failureReason?.name,
-                        failedOnDay = snap.failedOnDay,
+                        failureReason = if (wasTuneUp) null else snap.failureReason?.name,
+                        failedOnDay = if (wasTuneUp) null else snap.failedOnDay,
                     )
                 )
             }
