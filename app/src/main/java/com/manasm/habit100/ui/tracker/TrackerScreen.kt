@@ -35,6 +35,7 @@ import androidx.lifecycle.Lifecycle
 import com.manasm.habit100.BuildConfig
 import com.manasm.habit100.ui.GridSize
 import com.manasm.habit100.ui.HabitGrid
+import com.manasm.habit100.ui.components.StatCard
 import com.manasm.habit100.ui.theme.HabitColors
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -176,16 +177,6 @@ private fun FormingContent(s: TrackerUiState.Forming, vm: TrackerViewModel) {
 
         if (BuildConfig.DEBUG) {
             OutlinedButton(onClick = vm::devAdvanceDay) { Text("dev: +1 day") }
-        }
-    }
-}
-
-@Composable
-private fun StatCard(label: String, value: String, modifier: Modifier = Modifier) {
-    Surface(modifier, shape = MaterialTheme.shapes.medium, tonalElevation = 1.dp) {
-        Column(Modifier.padding(16.dp)) {
-            Text(label, style = MaterialTheme.typography.labelMedium)
-            Text(value, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
         }
     }
 }

@@ -124,6 +124,20 @@ class HabitRepository(
         }
     }
 
+    /**
+     * The mastered habit plus its trophy-attempt day logs, for the graduation / trophy screens.
+     * Falls back to the current attempt when no trophy attempt has been stamped yet.
+     */
+    suspend fun trophyView(habitId: Long): Pair<HabitEntity, List<DayLog>>? {
+        val habit = habitDao.byId(habitId) ?: return null
+        val attempt = habit.trophyAttempt ?: habit.currentAttempt
+        val logs = dayLogDao.forAttempt(habit.id, attempt).map { it.toDayLog() }
+        return habit to logs
+    }
+
+    /** True when no habit is currently forming, i.e. the user may start a new one. */
+    suspend fun canStartNew(): Boolean = habitDao.activeCount() == 0
+
     suspend fun acknowledgeGraduation(habitId: Long) {
         val habit = habitDao.byId(habitId) ?: return
         habitDao.update(habit.copy(graduationAcknowledged = true))

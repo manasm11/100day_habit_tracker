@@ -107,6 +107,19 @@ class HabitRepositoryTest {
         assertNull(db.habitDao().observeUnacknowledgedGraduation().first())
     }
 
+    @Test fun trophy_view_after_graduation() = runTest {
+        repo.createHabit("Read", zone)
+        val id = repo.observeActive().first()!!.habit.id
+        repeat(100) { repo.markTodayDone(id); clock.advanceDays(1) }
+        val (h, logs) = repo.trophyView(id)!!
+        assertEquals("mastered", h.status)
+        assertEquals(
+            100,
+            logs.count { it.status == com.manasm.habit100.domain.DayStatus.DONE },
+        )
+        assertTrue(repo.canStartNew())
+    }
+
     @Test fun failed_state_still_computable_from_snapshot() = runTest {
         repo.createHabit("Read", zone)
         val id = repo.observeActive().first()!!.habit.id
