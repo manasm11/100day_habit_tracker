@@ -40,8 +40,11 @@ class GraduationViewModel(
                 .atStartOfDay(zone)
                 .toInstant()
             val snap = HabitRules.evaluate(habit.toRuleInput(logs), past)
+            // Evaluated past the window, so every day in 1..trackLength is definitively DONE
+            // or a miss. Derive misses positionally rather than from persisted MISSED rows —
+            // the "mark day 100" graduation path flips to mastered without materializing them.
             val done = logs.filter { it.status == DayStatus.DONE }.map { it.dayNumber }.toSet()
-            val missed = logs.filter { it.status == DayStatus.MISSED }.map { it.dayNumber }.toSet()
+            val missed = (1..habit.attemptTrackLength).filterNot { it in done }.toSet()
             _ui.value = GraduationUi(
                 name = habit.name,
                 daysDone = snap.doneCount,

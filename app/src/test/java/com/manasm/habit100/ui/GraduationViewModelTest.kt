@@ -5,6 +5,7 @@ import androidx.test.core.app.ApplicationProvider
 import com.manasm.habit100.data.HabitDatabase
 import com.manasm.habit100.data.HabitDatabaseTestHooks
 import com.manasm.habit100.data.HabitRepository
+import com.manasm.habit100.ui.CellState
 import com.manasm.habit100.support.FakeClock
 import com.manasm.habit100.ui.graduation.GraduationViewModel
 import kotlinx.coroutines.Dispatchers
@@ -65,6 +66,8 @@ class GraduationViewModelTest {
         assertEquals(98, ui.daysDone)
         assertEquals(2, ui.missesUsed)
         assertEquals(100, ui.cells.size)
+        assertEquals(2, ui.cells.count { it == CellState.MISSED })
+        assertEquals(98, ui.cells.count { it == CellState.DONE })
         // Longest run is day 41..100 = 60.
         assertEquals(60, ui.bestStreak)
     }
