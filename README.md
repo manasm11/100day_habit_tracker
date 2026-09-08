@@ -27,9 +27,18 @@ Screens: daily tracker, graduation, mastered shelf, new-habit.
 4. `./gradlew :app:testDebugUnitTest` — runs the rule-engine (JVM) and Robolectric suites.
 5. `./gradlew :app:lintDebug` — static analysis.
 
+## Continuous integration
+
+`.github/workflows/android.yml` runs on every push and pull request: unit tests, lint,
+and `assembleDebug`. Each run publishes the built **`app-debug.apk`** as a downloadable
+workflow artifact (Actions → the run → *Artifacts*), plus the test and lint reports.
+No signing config is needed — it builds the debug variant. To also produce a signed
+release APK, add a `release` signing config and a keystore secret, then a
+`:app:assembleRelease` step.
+
 ## Dev clock
 
-Debug builds show a **"dev: +1 day"** control on the tracker. It advances a persisted
+Debug builds show a **"dev: +1 day"** and **"dev: set date"** control on the tracker. It advances a persisted
 offset on top of the system clock so you can walk a habit through rollover, at-risk,
 failure, graduation, the monthly check-in, a slip, and the tune-up without waiting real
 days. Release builds use the plain system clock and never show the control.
