@@ -23,7 +23,7 @@ class HabitRepositoryTest {
     private lateinit var repo: HabitRepository
     private val zone = ZoneId.of("America/New_York")
     private val clock = FakeClock(
-        LocalDate.of(2026, 1, 1).atTime(9, 0).atZone(ZoneId.of("America/New_York")).toInstant()
+        LocalDate.of(2026, 1, 1).atTime(12, 0).atZone(ZoneId.of("America/New_York")).toInstant()
     )
 
     @Before fun setup() {
@@ -234,5 +234,44 @@ class HabitRepositoryTest {
         val logs = db.dayLogDao().forAttempt(id, 1).map { it.toDayLog() }
         val snap = repo.snapshotOf(db.habitDao().byId(id)!!, logs)
         assertEquals(HabitState.FAILED, snap.state)
+    }
+
+    @Test fun undo_mark_day_returns_the_markable_day_to_pending() = runTest {
+        repo.createHabit("Read", zone)
+        val id = repo.observeActive().first()!!.habit.id
+        repo.markTodayDone(id)
+        assertTrue(repo.observeActive().first()!!.snapshot.todayMarkedDone)
+
+        repo.undoMarkDay(id)
+
+        val a = repo.observeActive().first()!!
+        assertFalse(a.snapshot.todayMarkedDone)
+        assertTrue(a.snapshot.canMarkToday)
+        assertEquals(0, a.snapshot.doneCount)
+        assertEquals(0, db.dayLogDao().forAttempt(id, 1).size)
+    }
+
+    @Test fun undo_mark_day_is_rejected_when_the_markable_day_is_not_marked() = runTest {
+        repo.createHabit("Read", zone)
+        val id = repo.observeActive().first()!!.habit.id
+        try {
+            repo.undoMarkDay(id)
+            fail("expected IllegalStateException")
+        } catch (e: IllegalStateException) {
+            // expected
+        }
+    }
+
+    @Test fun undo_mark_day_never_touches_a_finalized_past_day() = runTest {
+        repo.createHabit("Read", zone)
+        val id = repo.observeActive().first()!!.habit.id
+        repo.markTodayDone(id)          // day 1 done
+        clock.advanceDays(1)           // now day 2, noon -> day 1 is finalized
+        repo.markTodayDone(id)          // day 2 done
+        repo.undoMarkDay(id)            // undoes day 2 only
+
+        val logs = db.dayLogDao().forAttempt(id, 1)
+        assertEquals(listOf(1), logs.map { it.dayNumber })
+        assertEquals("done", logs.single().status)
     }
 }

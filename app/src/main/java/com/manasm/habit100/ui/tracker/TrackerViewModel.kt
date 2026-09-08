@@ -21,6 +21,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 
 class TrackerViewModel(
     private val repo: HabitRepository,
@@ -103,6 +104,13 @@ class TrackerViewModel(
             alreadyDoneToday = snap.todayMarkedDone,
             cells = gridCells(trackLength, snap.currentDayNumber, done, missed + impliedMissed),
             isTuneUp = a.habit.status == "tuning_up",
+            isGraceDay = snap.currentDayNumber < snap.calendarDayNumber,
+            graceDeadlineText = snap.graceDeadline?.let {
+                DateTimeFormatter.ofPattern("h:mm a")
+                    .withZone(ZoneId.of(a.habit.timeZoneId))
+                    .format(it)
+            },
+            canUndo = snap.canUndoMark,
         )
     }
 
@@ -116,6 +124,14 @@ class TrackerViewModel(
         viewModelScope.launch {
             val active = repo.observeActive().first() ?: return@launch
             runCatching { repo.markTodayDone(active.habit.id) }
+            refreshTicker.value++
+        }
+    }
+
+    fun undoMark() {
+        viewModelScope.launch {
+            val active = repo.observeActive().first() ?: return@launch
+            runCatching { repo.undoMarkDay(active.habit.id) }
             refreshTicker.value++
         }
     }
@@ -153,7 +169,8 @@ class TrackerViewModel(
         viewModelScope.launch {
             val active = repo.observeActive().first()
             val zone = active?.let { ZoneId.of(it.habit.timeZoneId) } ?: ZoneId.systemDefault()
-            val target = date.atTime(9, 0).atZone(zone).toInstant()
+            // Noon so dev time-travel lands outside the morning grace window by default.
+            val target = date.atTime(12, 0).atZone(zone).toInstant()
             store.setOffsetSeconds(target.epochSecond - SystemClock().now().epochSecond)
             devClock?.update(store.offsetSeconds.first())
             active?.let { repo.applyTransition(it.habit.id) }

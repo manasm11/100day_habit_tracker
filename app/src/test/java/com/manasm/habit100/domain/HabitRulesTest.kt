@@ -240,4 +240,102 @@ class HabitRulesTest {
         val now = LocalDate.of(2026, 1, 1).atTime(23, 0).atZone(ZoneId.of("UTC")).toInstant()
         assertEquals(2, currentDayNumber(start, z, now))
     }
+
+    // --- morning grace window (mark yesterday until 10:00 local) ---
+
+    /** now = calendar day [calDay] at [hour]:[minute] local. */
+    private fun at(calDay: Int, hour: Int, minute: Int = 0): Instant =
+        dateForDay(start, calDay).atTime(hour, minute).atZone(z).toInstant()
+
+    private fun graceCutoffInstant(calDay: Int): Instant =
+        dateForDay(start, calDay).atTime(10, 0).atZone(z).toInstant()
+
+    @Test fun grace_window_keeps_yesterday_as_the_markable_day() {
+        // 08:00 on calendar day 5; days 1-3 done, day 4 not yet marked
+        val s = HabitRules.evaluate(input(done = intArrayOf(1, 2, 3)), at(5, 8))
+        assertEquals(4, s.currentDayNumber)          // the day in play
+        assertEquals(5, s.calendarDayNumber)
+        assertEquals(graceCutoffInstant(5), s.graceDeadline)
+        assertEquals(true, s.canMarkToday)
+        assertEquals(0, s.missCount)                 // day 4 is pending, not a miss, until 10:00
+        assertEquals(HabitState.FORMING, s.state)
+    }
+
+    @Test fun grace_window_closes_at_the_cutoff_and_yesterday_becomes_a_miss() {
+        val s = HabitRules.evaluate(input(done = intArrayOf(1, 2, 3)), at(5, 10, 1))
+        assertEquals(5, s.currentDayNumber)
+        assertEquals(5, s.calendarDayNumber)
+        assertNull(s.graceDeadline)
+        assertEquals(1, s.missCount)                 // day 4 has locked as a miss
+    }
+
+    @Test fun no_grace_day_on_day_1() {
+        val s = HabitRules.evaluate(input(), at(1, 6))
+        assertEquals(1, s.currentDayNumber)
+        assertEquals(1, s.calendarDayNumber)
+        assertNull(s.graceDeadline)
+    }
+
+    @Test fun grace_day_is_not_offered_once_yesterday_is_done() {
+        val s = HabitRules.evaluate(input(done = intArrayOf(1, 2, 3, 4)), at(5, 8))
+        assertEquals(5, s.currentDayNumber)          // today, not the already-done day 4
+        assertEquals(true, s.canMarkToday)
+    }
+
+    @Test fun at_risk_during_grace_when_the_day_before_the_grace_day_was_missed() {
+        // 08:00 day 5; days 1,2 done, day 3 missed, day 4 (grace day) unmarked
+        val s = HabitRules.evaluate(input(done = intArrayOf(1, 2)), at(5, 8))
+        assertEquals(4, s.currentDayNumber)
+        assertEquals(HabitState.FORMING, s.state)
+        assertEquals(true, s.atRisk)                 // miss day 4 by 10:00 -> 3 & 4 two in a row -> fail
+    }
+
+    @Test fun marking_the_grace_day_clears_the_risk_and_advances_to_today() {
+        // days 1,2 done, day 3 missed, day 4 (the grace day) now done -> markable day moves to 5
+        val s = HabitRules.evaluate(input(done = intArrayOf(1, 2, 4)), at(5, 8))
+        assertEquals(5, s.currentDayNumber)
+        assertEquals(false, s.atRisk)
+        assertEquals(1, s.missCount)                 // only day 3
+        assertEquals(true, s.canMarkToday)           // day 5 is a normal current day
+    }
+
+    @Test fun grace_lets_you_still_mark_day_100() {
+        // calendar day 101, 08:00; days 1-99 done, day 100 not yet marked
+        val s = HabitRules.evaluate(input(done = (1..99).toList().toIntArray()), at(101, 8))
+        assertEquals(100, s.currentDayNumber)
+        assertEquals(HabitState.FORMING, s.state)
+        assertEquals(true, s.canMarkToday)
+    }
+
+    @Test fun grace_marking_day_100_graduates() {
+        val s = HabitRules.evaluate(input(done = (1..100).toList().toIntArray()), at(101, 8))
+        assertEquals(HabitState.GRADUATED, s.state)
+    }
+
+    @Test fun day_100_missed_after_grace_with_day_99_missed_fails_two_in_a_row() {
+        // calendar day 101, 11:00; days 1-98 done, 99 & 100 never marked
+        val s = HabitRules.evaluate(input(done = (1..98).toList().toIntArray()), at(101, 11))
+        assertEquals(HabitState.FAILED, s.state)
+        assertEquals(FailureReason.TWO_IN_A_ROW, s.failureReason)
+        assertEquals(100, s.failedOnDay)
+    }
+
+    // --- undo the markable day ---
+
+    @Test fun can_undo_the_markable_day_when_it_is_marked() {
+        val s = HabitRules.evaluate(input(done = intArrayOf(1, 2, 3)), nowForDay(3))
+        assertEquals(true, s.todayMarkedDone)
+        assertEquals(true, s.canUndoMark)
+    }
+
+    @Test fun cannot_undo_when_the_markable_day_is_not_marked() {
+        val s = HabitRules.evaluate(input(done = intArrayOf(1, 2)), nowForDay(3))
+        assertEquals(false, s.canUndoMark)
+    }
+
+    @Test fun cannot_undo_after_graduation() {
+        val s = HabitRules.evaluate(input(done = (1..100).toList().toIntArray()), nowForDay(100))
+        assertEquals(HabitState.GRADUATED, s.state)
+        assertEquals(false, s.canUndoMark)
+    }
 }

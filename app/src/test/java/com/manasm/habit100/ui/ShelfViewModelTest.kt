@@ -33,7 +33,7 @@ class ShelfViewModelTest {
     private lateinit var repo: HabitRepository
     private val vms = mutableListOf<ShelfViewModel>()
     private val clock =
-        FakeClock(LocalDate.of(2026, 1, 1).atTime(9, 0).atZone(zone).toInstant())
+        FakeClock(LocalDate.of(2026, 1, 1).atTime(12, 0).atZone(zone).toInstant())
 
     private fun shelfVm() = ShelfViewModel(repo).also { vms += it }
 

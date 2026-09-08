@@ -19,6 +19,12 @@ sealed interface TrackerUiState {
         val alreadyDoneToday: Boolean,
         val cells: List<CellState>,
         val isTuneUp: Boolean,
+        /** [dayNumber] is yesterday, still markable during the morning grace window. */
+        val isGraceDay: Boolean,
+        /** Local time the grace day locks as a miss, e.g. "10:00 AM" — non-null only while [isGraceDay]. */
+        val graceDeadlineText: String?,
+        /** The marked day can still be un-marked (with confirmation). */
+        val canUndo: Boolean,
     ) : TrackerUiState
 
     data class Graduated(val habitId: Long) : TrackerUiState

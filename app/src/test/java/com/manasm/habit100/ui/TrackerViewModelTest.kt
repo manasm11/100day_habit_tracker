@@ -29,7 +29,7 @@ import java.time.ZoneId
 @Config(sdk = [34])
 class TrackerViewModelTest {
     private val zone = ZoneId.of("America/New_York")
-    private fun clockAt(d: LocalDate) = FakeClock(d.atTime(9, 0).atZone(zone).toInstant())
+    private fun clockAt(d: LocalDate) = FakeClock(d.atTime(12, 0).atZone(zone).toInstant())
 
     private var db: TestDb? = null
     private var vm: TrackerViewModel? = null
@@ -136,5 +136,42 @@ class TrackerViewModelTest {
         vm.state.first { it is TrackerUiState.Failed }
         vm.abandon()
         assertTrue(vm.state.first { it is TrackerUiState.Empty } is TrackerUiState.Empty)
+    }
+
+    @Test fun grace_window_shows_the_prior_day_as_still_markable() = runTest {
+        val clock = clockAt(LocalDate.of(2026, 1, 1))
+        val (repo, vm) = setup(clock)
+        repo.createHabit("Read", zone)
+        val id = repo.observeActive().first()!!.habit.id
+        repo.markTodayDone(id) // day 1 done
+        // day 3 at 08:00: day 2 was never marked, so it is still inside its grace window
+        clock.instant = LocalDate.of(2026, 1, 3).atTime(8, 0).atZone(zone).toInstant()
+        vm.refresh()
+        val s = vm.state.first {
+            it is TrackerUiState.Forming && (it as TrackerUiState.Forming).isGraceDay
+        } as TrackerUiState.Forming
+        assertEquals(2, s.dayNumber)
+        assertTrue(s.canMarkToday)
+        assertNotNull(s.graceDeadlineText)
+    }
+
+    @Test fun undo_is_offered_after_marking_and_clears_the_day() = runTest {
+        val (repo, vm) = setup(clockAt(LocalDate.of(2026, 1, 1)))
+        repo.createHabit("Read", zone)
+        val s1 = vm.settled() as TrackerUiState.Forming
+        assertFalse(s1.canUndo)
+
+        vm.markDone()
+        val s2 = vm.state.first {
+            it is TrackerUiState.Forming && (it as TrackerUiState.Forming).canUndo
+        } as TrackerUiState.Forming
+        assertTrue(s2.alreadyDoneToday)
+
+        vm.undoMark()
+        val s3 = vm.state.first {
+            it is TrackerUiState.Forming && (it as TrackerUiState.Forming).canMarkToday
+        } as TrackerUiState.Forming
+        assertEquals(0, s3.doneCount)
+        assertFalse(s3.canUndo)
     }
 }

@@ -34,7 +34,7 @@ class GraduationViewModelTest {
     private lateinit var repo: HabitRepository
     private val vms = mutableListOf<GraduationViewModel>()
     private val clock =
-        FakeClock(LocalDate.of(2026, 1, 1).atTime(9, 0).atZone(zone).toInstant())
+        FakeClock(LocalDate.of(2026, 1, 1).atTime(12, 0).atZone(zone).toInstant())
 
     private fun gradVm(id: Long) = GraduationViewModel(repo, id).also { vms += it }
 

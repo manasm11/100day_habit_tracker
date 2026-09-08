@@ -73,4 +73,22 @@ class RolloverEngineTest {
         RolloverEngine(port, clockOnDay(101)).run()
         assertTrue(port.graduated)
     }
+
+    private fun clockAt(calendarDay: Int, hour: Int) =
+        FakeClock(start.plusDays((calendarDay - 1).toLong()).atTime(hour, 0).atZone(zone).toInstant())
+
+    @Test fun does_not_materialize_yesterday_as_a_miss_during_the_grace_window() = runTest {
+        // calendar day 3, 08:00; day 1 done, day 2 not yet marked -> still inside day 2's grace window
+        val port = FakePort(habit(), mutableListOf(DayLog(1, DayStatus.DONE)))
+        RolloverEngine(port, clockAt(3, 8)).run()
+        assertTrue(port.inserted.isEmpty())
+        assertNull(port.failed)
+    }
+
+    @Test fun materializes_yesterday_as_a_miss_once_the_grace_window_closes() = runTest {
+        // calendar day 3, 11:00; day 2's grace window has closed
+        val port = FakePort(habit(), mutableListOf(DayLog(1, DayStatus.DONE)))
+        RolloverEngine(port, clockAt(3, 11)).run()
+        assertEquals(listOf(2), port.inserted)
+    }
 }

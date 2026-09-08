@@ -42,6 +42,9 @@ interface DayLogDao {
 
     @Query("SELECT * FROM day_logs WHERE habitId = :habitId AND attempt = :attempt ORDER BY dayNumber")
     fun observeForAttempt(habitId: Long, attempt: Int): Flow<List<DayLogEntity>>
+
+    @Query("DELETE FROM day_logs WHERE habitId = :habitId AND attempt = :attempt AND dayNumber = :dayNumber")
+    suspend fun deleteDay(habitId: Long, attempt: Int, dayNumber: Int)
 }
 
 @Dao

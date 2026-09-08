@@ -25,7 +25,7 @@ class MaintenanceTest {
     private lateinit var repo: HabitRepository
     private val zone = ZoneId.of("America/New_York")
     private val clock = FakeClock(
-        LocalDate.of(2026, 1, 1).atTime(9, 0).atZone(ZoneId.of("America/New_York")).toInstant()
+        LocalDate.of(2026, 1, 1).atTime(12, 0).atZone(ZoneId.of("America/New_York")).toInstant()
     )
 
     @Before fun setup() {

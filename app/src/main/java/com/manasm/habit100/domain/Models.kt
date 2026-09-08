@@ -1,6 +1,8 @@
 package com.manasm.habit100.domain
 
+import java.time.Instant
 import java.time.LocalDate
+import java.time.LocalTime
 import java.time.ZoneId
 
 enum class DayStatus { DONE, MISSED }
@@ -15,10 +17,14 @@ data class RuleInput(
     val trackLength: Int,
     val dayLogs: List<DayLog>,
     val missBudget: Int = 10,
+    val graceCutoff: LocalTime = DEFAULT_GRACE_CUTOFF,
 )
 
 data class RuleSnapshot(
+    /** The day the user can act on right now — the calendar day, or yesterday during the morning grace window. */
     val currentDayNumber: Int,
+    /** The true calendar day number. Differs from [currentDayNumber] only during an open grace window. */
+    val calendarDayNumber: Int,
     val effectiveDay: Int,
     val doneCount: Int,
     val missCount: Int,
@@ -30,4 +36,8 @@ data class RuleSnapshot(
     val failedOnDay: Int?,
     val canMarkToday: Boolean,
     val todayMarkedDone: Boolean,
+    /** Can the user un-mark [currentDayNumber] (it is marked done and the attempt is still forming). */
+    val canUndoMark: Boolean,
+    /** When the grace day locks as a miss — non-null only while a grace window is open. */
+    val graceDeadline: Instant?,
 )

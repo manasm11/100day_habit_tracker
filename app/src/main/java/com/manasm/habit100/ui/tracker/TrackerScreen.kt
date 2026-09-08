@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
@@ -156,6 +157,9 @@ private fun FailedState(s: TrackerUiState.Failed, vm: TrackerViewModel) {
 
 @Composable
 private fun FormingContent(s: TrackerUiState.Forming, vm: TrackerViewModel) {
+    var confirmUndo by rememberSaveable { mutableStateOf(false) }
+    val dayWord = if (s.isGraceDay) "yesterday" else "today"
+
     Column(
         Modifier
             .fillMaxSize()
@@ -181,12 +185,33 @@ private fun FormingContent(s: TrackerUiState.Forming, vm: TrackerViewModel) {
             ) {
                 Column(Modifier.fillMaxWidth().padding(16.dp)) {
                     Text(
-                        "Don't miss today",
+                        "Don't miss $dayWord",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                     )
                     Spacer(Modifier.height(4.dp))
-                    Text("You missed yesterday. Miss today too and the attempt fails — two in a row.")
+                    Text(
+                        if (s.isGraceDay)
+                            "The day before was a miss. Miss yesterday too and the attempt fails — two in a row."
+                        else
+                            "You missed yesterday. Miss today too and the attempt fails — two in a row.",
+                    )
+                }
+            }
+        } else if (s.isGraceDay && !s.alreadyDoneToday) {
+            Surface(
+                color = HabitColors.amber.copy(alpha = 0.12f),
+                shape = MaterialTheme.shapes.medium,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Column(Modifier.fillMaxWidth().padding(16.dp)) {
+                    Text("Yesterday isn't marked yet", fontWeight = FontWeight.SemiBold)
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        "You can still mark it done until ${s.graceDeadlineText ?: "this morning"}. " +
+                            "After that it locks as a miss.",
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
                 }
             }
         }
@@ -203,9 +228,20 @@ private fun FormingContent(s: TrackerUiState.Forming, vm: TrackerViewModel) {
                     .fillMaxWidth()
                     .height(56.dp),
             ) {
-                Text(if (s.alreadyDoneToday) "Done for today ✓" else "Mark today done")
+                Text(
+                    when {
+                        s.alreadyDoneToday -> "Marked $dayWord ✓"
+                        s.isGraceDay -> "Mark yesterday done"
+                        else -> "Mark today done"
+                    },
+                )
             }
-            if (!s.canMarkToday) {
+            if (s.canUndo) {
+                Spacer(Modifier.height(6.dp))
+                TextButton(onClick = { confirmUndo = true }) {
+                    Text("Undo — I didn't actually do it")
+                }
+            } else if (!s.canMarkToday) {
                 Spacer(Modifier.height(6.dp))
                 Text(
                     if (s.alreadyDoneToday) "Come back tomorrow."
@@ -214,6 +250,25 @@ private fun FormingContent(s: TrackerUiState.Forming, vm: TrackerViewModel) {
                 )
             }
         }
+    }
+
+    if (confirmUndo) {
+        AlertDialog(
+            onDismissRequest = { confirmUndo = false },
+            title = { Text("Un-mark day ${s.dayNumber}?") },
+            text = {
+                Text(
+                    "This clears $dayWord's check-in. You can mark it again before it locks" +
+                        (s.graceDeadlineText?.let { " at $it" } ?: "") + ".",
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = { confirmUndo = false; vm.undoMark() }) { Text("Un-mark") }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmUndo = false }) { Text("Keep it") }
+            },
+        )
     }
 }
 

@@ -41,9 +41,19 @@ These rules are the whole point of the product. There must be zero ambiguity.
 ### 2.2 Marking
 
 - Each day the user marks the habit **done**. Marking is **one tap**.
-- Only the **current day** can be marked done. Retroactive marking of past days is
-  **not allowed**. Missed past days stay missed permanently.
-- If a day is not marked done by local midnight, it becomes a **miss** at rollover.
+- Only the **day in play** can be marked done — never an older day. Retroactive editing
+  of history is **not allowed**; a finalized missed day stays missed permanently.
+- **Morning grace window.** Between local midnight and **10:00** in the habit's zone,
+  if the previous calendar day is still unmarked it remains the "day in play" (you can
+  finish yesterday over morning coffee). At 10:00 it locks as a miss and the day in
+  play becomes today. This is strictly forward-only: the day in play never goes back
+  more than one calendar day, and only while that day is genuinely unfinished. Once the
+  previous day is marked done, the day in play is today even before 10:00.
+- **Same-day undo.** The user can un-mark the day in play (today, or the grace day)
+  behind a confirmation dialog — it returns to pending and can be marked again before
+  it locks. Undo never reaches a finalized past day.
+- If the day in play is not marked done by the time it locks (local midnight, or 10:00
+  for a grace day), it becomes a **miss** at rollover.
 
 ### 2.3 Miss budget
 

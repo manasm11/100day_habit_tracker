@@ -5,11 +5,14 @@ import java.time.Instant
 object HabitRules {
 
     fun evaluate(input: RuleInput, now: Instant): RuleSnapshot {
-        val currentDay = currentDayNumber(input.startDate, input.zoneId, now)
         val doneDays = input.dayLogs
             .filter { it.status == DayStatus.DONE }
             .map { it.dayNumber }
             .toHashSet()
+
+        val calendarDay = currentDayNumber(input.startDate, input.zoneId, now)
+        // The one day the user can act on: today, or yesterday during the morning grace window.
+        val currentDay = markableDay(input.startDate, input.zoneId, now, doneDays, input.graceCutoff)
 
         val lastDay = minOf(currentDay, input.trackLength)
         val todayMarkedDone = currentDay <= input.trackLength && currentDay in doneDays
@@ -44,7 +47,7 @@ object HabitRules {
                     failedOnDay = day
                 }
             }
-            // else: current day, unmarked -> pending, not counted
+            // else: the markable day, unmarked -> pending, not counted
             if (failureReason != null) break
             day++
         }
@@ -56,18 +59,32 @@ object HabitRules {
             else -> HabitState.FORMING
         }
 
-        val yesterday = currentDay - 1
-        val yesterdayMissed = yesterday in 1..input.trackLength &&
-            yesterday < currentDay &&
-            yesterday !in doneDays
-        val atRisk = state == HabitState.FORMING && yesterdayMissed && !todayMarkedDone
+        val prior = currentDay - 1
+        val priorMissed = prior in 1..input.trackLength &&
+            prior < currentDay &&
+            prior !in doneDays
+        val atRisk = state == HabitState.FORMING && priorMissed && !todayMarkedDone
 
         val canMarkToday = state == HabitState.FORMING &&
             currentDay in 1..input.trackLength &&
             !todayMarkedDone
 
+        val canUndoMark = state == HabitState.FORMING &&
+            currentDay in 1..input.trackLength &&
+            todayMarkedDone
+
+        val graceDeadline = if (currentDay < calendarDay) {
+            input.startDate.plusDays((calendarDay - 1).toLong())
+                .atTime(input.graceCutoff)
+                .atZone(input.zoneId)
+                .toInstant()
+        } else {
+            null
+        }
+
         return RuleSnapshot(
             currentDayNumber = currentDay,
+            calendarDayNumber = calendarDay,
             effectiveDay = lastDay,
             doneCount = done,
             missCount = misses,
@@ -79,6 +96,8 @@ object HabitRules {
             failedOnDay = failedOnDay,
             canMarkToday = canMarkToday,
             todayMarkedDone = todayMarkedDone,
+            canUndoMark = canUndoMark,
+            graceDeadline = graceDeadline,
         )
     }
 }
