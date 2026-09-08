@@ -36,6 +36,13 @@ No signing config is needed — it builds the debug variant. To also produce a s
 release APK, add a `release` signing config and a keystore secret, then a
 `:app:assembleRelease` step.
 
+### Releases
+
+Pushing a version tag (`git tag v1.2.3 && git push origin v1.2.3`) runs the full
+suite, then publishes a **GitHub Release** for that tag with
+`100-day-habit-tracker-v1.2.3.apk` attached — a permanent download at
+`/releases`, unlike the 30-day CI artifacts.
+
 ## Dev clock
 
 Debug builds show a **"dev: +1 day"** and **"dev: set date"** control on the tracker. It advances a persisted

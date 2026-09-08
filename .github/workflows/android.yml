@@ -47,6 +47,15 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
+      - name: Stash APK for the release job
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: actions/upload-artifact@v5
+        with:
+          name: release-apk
+          path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 1
+
       - name: Upload test + lint reports
         if: always()
         uses: actions/upload-artifact@v5
@@ -57,3 +66,30 @@ jobs:
             app/build/reports/lint-results-debug.html
           if-no-files-found: ignore
           retention-days: 14
+
+  release:
+    name: Publish release APK
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download the built APK
+        uses: actions/download-artifact@v5
+        with:
+          name: release-apk
+
+      - name: Name the APK after the tag
+        run: mv app-debug.apk "100-day-habit-tracker-${{ github.ref_name }}.apk"
+
+      - name: Create the GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          gh release create "${{ github.ref_name }}" \
+            "100-day-habit-tracker-${{ github.ref_name }}.apk" \
+            --title "${{ github.ref_name }}" \
+            --generate-notes
