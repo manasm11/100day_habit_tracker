@@ -111,6 +111,7 @@ class TrackerViewModel(
                     .format(it)
             },
             canUndo = snap.canUndoMark,
+            undoDayNumber = snap.undoDayNumber ?: 0,
         )
     }
 

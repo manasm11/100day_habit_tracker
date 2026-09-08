@@ -23,8 +23,10 @@ sealed interface TrackerUiState {
         val isGraceDay: Boolean,
         /** Local time the grace day locks as a miss, e.g. "10:00 AM" — non-null only while [isGraceDay]. */
         val graceDeadlineText: String?,
-        /** The marked day can still be un-marked (with confirmation). */
+        /** A marked day can still be un-marked (with confirmation). */
         val canUndo: Boolean,
+        /** The day the undo affordance would clear (0 when [canUndo] is false). */
+        val undoDayNumber: Int,
     ) : TrackerUiState
 
     data class Graduated(val habitId: Long) : TrackerUiState

@@ -91,14 +91,15 @@ class HabitRepository(
         }
     }
 
-    /** Un-mark the day currently in play (today, or the grace day). Never a finalized past day. */
+    /** Un-mark the day in play — today, or the grace day while its window is open. Never a finalized past day. */
     suspend fun undoMarkDay(habitId: Long) {
         db.withTransaction {
             val habit = habitDao.byId(habitId) ?: return@withTransaction
             val logs = dayLogDao.forAttempt(habit.id, habit.currentAttempt).map { it.toDayLog() }
             val snap = snapshotOf(habit, logs)
-            check(snap.canUndoMark) { "There is nothing to undo for the current day" }
-            dayLogDao.deleteDay(habit.id, habit.currentAttempt, snap.currentDayNumber)
+            val day = snap.undoDayNumber
+            checkNotNull(day) { "There is nothing to undo right now" }
+            dayLogDao.deleteDay(habit.id, habit.currentAttempt, day)
             applyTransitionLocked(habit.id)
         }
     }

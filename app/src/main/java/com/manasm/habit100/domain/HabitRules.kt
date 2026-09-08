@@ -12,7 +12,9 @@ object HabitRules {
 
         val calendarDay = currentDayNumber(input.startDate, input.zoneId, now)
         // The one day the user can act on: today, or yesterday during the morning grace window.
-        val currentDay = markableDay(input.startDate, input.zoneId, now, doneDays, input.graceCutoff)
+        val currentDay = markableDay(input.startDate, input.zoneId, now, doneDays)
+        val graceWindowOpen = calendarDay >= 2 &&
+            now.atZone(input.zoneId).toLocalTime() < DEFAULT_GRACE_CUTOFF
 
         val lastDay = minOf(currentDay, input.trackLength)
         val todayMarkedDone = currentDay <= input.trackLength && currentDay in doneDays
@@ -69,13 +71,23 @@ object HabitRules {
             currentDay in 1..input.trackLength &&
             !todayMarkedDone
 
-        val canUndoMark = state == HabitState.FORMING &&
-            currentDay in 1..input.trackLength &&
-            todayMarkedDone
+        // The day undo would clear: the current calendar day if marked, else the grace day
+        // while its window is still open and it is marked. Prefer the later of the two.
+        val undoDayNumber: Int? = if (state != HabitState.FORMING) {
+            null
+        } else {
+            listOfNotNull(
+                (calendarDay - 1).takeIf {
+                    graceWindowOpen && it in 1..input.trackLength && it in doneDays
+                },
+                calendarDay.takeIf { it in 1..input.trackLength && it in doneDays },
+            ).maxOrNull()
+        }
+        val canUndoMark = undoDayNumber != null
 
         val graceDeadline = if (currentDay < calendarDay) {
             input.startDate.plusDays((calendarDay - 1).toLong())
-                .atTime(input.graceCutoff)
+                .atTime(DEFAULT_GRACE_CUTOFF)
                 .atZone(input.zoneId)
                 .toInstant()
         } else {
@@ -97,6 +109,7 @@ object HabitRules {
             canMarkToday = canMarkToday,
             todayMarkedDone = todayMarkedDone,
             canUndoMark = canUndoMark,
+            undoDayNumber = undoDayNumber,
             graceDeadline = graceDeadline,
         )
     }

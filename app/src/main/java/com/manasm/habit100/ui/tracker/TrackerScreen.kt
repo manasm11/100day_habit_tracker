@@ -198,7 +198,7 @@ private fun FormingContent(s: TrackerUiState.Forming, vm: TrackerViewModel) {
                     )
                 }
             }
-        } else if (s.isGraceDay && !s.alreadyDoneToday) {
+        } else if (s.isGraceDay) {
             Surface(
                 color = HabitColors.amber.copy(alpha = 0.12f),
                 shape = MaterialTheme.shapes.medium,
@@ -253,13 +253,18 @@ private fun FormingContent(s: TrackerUiState.Forming, vm: TrackerViewModel) {
     }
 
     if (confirmUndo) {
+        val undoIsGraceDay = s.canMarkToday && s.undoDayNumber < s.dayNumber
         AlertDialog(
             onDismissRequest = { confirmUndo = false },
-            title = { Text("Un-mark day ${s.dayNumber}?") },
+            title = { Text("Un-mark day ${s.undoDayNumber}?") },
             text = {
                 Text(
-                    "This clears $dayWord's check-in. You can mark it again before it locks" +
-                        (s.graceDeadlineText?.let { " at $it" } ?: "") + ".",
+                    "This clears the check-in for day ${s.undoDayNumber}. You can mark it again " +
+                        if (undoIsGraceDay) {
+                            "before it locks${s.graceDeadlineText?.let { " at $it" } ?: ""}."
+                        } else {
+                            "before midnight."
+                        },
                 )
             },
             confirmButton = {

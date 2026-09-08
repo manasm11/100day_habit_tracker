@@ -274,4 +274,19 @@ class HabitRepositoryTest {
         assertEquals(listOf(1), logs.map { it.dayNumber })
         assertEquals("done", logs.single().status)
     }
+
+    @Test fun a_grace_day_mark_can_be_undone_while_the_window_is_open() = runTest {
+        repo.createHabit("Read", zone)
+        val id = repo.observeActive().first()!!.habit.id
+        repo.markTodayDone(id)          // day 1 done
+        // day 3 at 08:00 -> day 2 is inside its grace window
+        clock.instant = LocalDate.of(2026, 1, 3).atTime(8, 0).atZone(zone).toInstant()
+        repo.markTodayDone(id)          // marks the grace day (day 2)
+        assertEquals(2, db.dayLogDao().forAttempt(id, 1).size)
+
+        repo.undoMarkDay(id)            // takes back the grace-day mark
+
+        assertEquals(listOf(1), db.dayLogDao().forAttempt(id, 1).map { it.dayNumber })
+        assertTrue(repo.observeActive().first()!!.snapshot.canMarkToday)
+    }
 }

@@ -91,4 +91,12 @@ class RolloverEngineTest {
         RolloverEngine(port, clockAt(3, 11)).run()
         assertEquals(listOf(2), port.inserted)
     }
+
+    @Test fun a_grace_day_missed_after_the_window_closes_can_fail_two_in_a_row() = runTest {
+        // days 1 & 2 never marked; calendar day 3, 11:00 -> both finalize, 2nd consecutive on day 2
+        val port = FakePort(habit(), mutableListOf())
+        RolloverEngine(port, clockAt(3, 11)).run()
+        assertEquals(listOf(1, 2), port.inserted)
+        assertEquals(FailureReason.TWO_IN_A_ROW to 2, port.failed)
+    }
 }

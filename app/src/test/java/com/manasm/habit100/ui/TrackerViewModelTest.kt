@@ -174,4 +174,27 @@ class TrackerViewModelTest {
         assertEquals(0, s3.doneCount)
         assertFalse(s3.canUndo)
     }
+
+    @Test fun the_grace_day_mark_can_be_undone() = runTest {
+        val clock = clockAt(LocalDate.of(2026, 1, 1))
+        val (repo, vm) = setup(clock)
+        repo.createHabit("Read", zone)
+        val id = repo.observeActive().first()!!.habit.id
+        repo.markTodayDone(id) // day 1 done
+        clock.instant = LocalDate.of(2026, 1, 3).atTime(8, 0).atZone(zone).toInstant()
+        vm.refresh()
+        vm.markDone() // marks the grace day (day 2)
+        val marked = vm.state.first {
+            it is TrackerUiState.Forming && (it as TrackerUiState.Forming).canUndo
+        } as TrackerUiState.Forming
+        assertEquals(2, marked.undoDayNumber)
+
+        vm.undoMark()
+        val s = vm.state.first {
+            it is TrackerUiState.Forming && (it as TrackerUiState.Forming).isGraceDay
+        } as TrackerUiState.Forming
+        assertEquals(2, s.dayNumber)     // grace day back to pending
+        assertEquals(1, s.doneCount)     // day 1 is still legitimately done
+        assertTrue(s.canMarkToday)
+    }
 }

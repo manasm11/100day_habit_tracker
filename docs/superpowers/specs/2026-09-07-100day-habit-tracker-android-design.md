@@ -110,10 +110,12 @@ These rules are the whole point of the product. There must be zero ambiguity.
 On every app foreground (process lifecycle `ON_START`) and via a daily WorkManager
 backstop, for the habit in the forming slot:
 
-1. Compute the current day number in the habit's zone.
+1. Compute the **day in play** in the habit's zone (§2.2 — the calendar day, or the
+   grace day while its window is open).
 2. For each `dayNumber` from `(highest logged day + 1)` up to
-   `min(currentDayNumber − 1, trackLength)` that has no `done` log, insert a
-   **`missed`** `day_log` with the correct `logDate`, **in ascending order**.
+   `min(dayInPlay − 1, trackLength)` that has no `done` log, insert a **`missed`**
+   `day_log` with the correct `logDate`, **in ascending order**. A day still inside
+   its grace window is left pending, not materialised.
 3. Re-run the rule engine over the resulting logs.
 4. If the engine reports `FAILED`, set habit `status = failed` and persist the
    failure reason/day. If `GRADUATED`, set `status = mastered`, set `graduatedAt`,
@@ -192,18 +194,22 @@ data class RuleInput(
 )
 
 data class RuleSnapshot(
-    val currentDayNumber: Int,     // >= 1, may exceed trackLength
+    val currentDayNumber: Int,     // the DAY IN PLAY (§2.2): today, or the grace day. >= 1, may exceed trackLength
+    val calendarDayNumber: Int,    // the true calendar day; == currentDayNumber except during an open grace window
     val effectiveDay: Int,         // min(currentDayNumber, trackLength)
     val doneCount: Int,
-    val missCount: Int,            // includes implied misses for elapsed unmarked days
+    val missCount: Int,            // includes implied misses for elapsed unmarked (finalized) days
     val missesLeft: Int,           // max(0, missBudget - missCount)
     val bestStreak: Int,           // longest run of effective DONE days
     val atRisk: Boolean,
     val state: HabitState,
     val failureReason: FailureReason?,   // non-null iff state == FAILED
     val failedOnDay: Int?,               // non-null iff state == FAILED
-    val canMarkToday: Boolean,            // FORMING && today in track && today not done
-    val todayMarkedDone: Boolean,
+    val canMarkToday: Boolean,            // FORMING && day in play in track && not marked
+    val todayMarkedDone: Boolean,         // the day in play is marked
+    val canUndoMark: Boolean,             // undoDayNumber != null
+    val undoDayNumber: Int?,              // day undo would clear: current day if marked, else grace day while open; never finalized
+    val graceDeadline: Instant?,          // when the grace day locks as a miss; non-null only while a grace window is open
 )
 
 object HabitRules {
@@ -213,15 +219,18 @@ object HabitRules {
 
 ### 4.1 Algorithm
 
-1. `currentDayNumber = daysBetween(startDate, now.atZone(zoneId).toLocalDate()) + 1`,
+1. `calendarDayNumber = daysBetween(startDate, now.atZone(zoneId).toLocalDate()) + 1`,
    floored at 1.
+   `currentDayNumber` (the day in play) = `calendarDayNumber − 1` when `calendarDayNumber ≥ 2`,
+   the local wall time is before **10:00**, and day `calendarDayNumber − 1` is not marked
+   done; otherwise `calendarDayNumber`.
 2. Build an **effective timeline** for days `1..min(currentDayNumber, trackLength)`:
    - `DONE` if a `done` log exists for that day.
-   - For a **past** day (`day < currentDayNumber`) with no done log → `MISSED`
+   - For a **finalized past** day (`day < currentDayNumber`) with no done log → `MISSED`
      (implied; the persisted rollover will materialise these, but the engine does
      not depend on that having happened).
-   - The **current** day (`day == currentDayNumber`) with no done log → *pending*
-     (not counted as a miss, not DONE).
+   - The **day in play** (`day == currentDayNumber`) with no done log → *pending*
+     (not counted as a miss, not DONE). During an open grace window this is yesterday.
 3. Walk the timeline in ascending day order, tracking `totalMisses` and
    `consecutiveMisses`:
    - On a `MISSED` day: `consecutiveMisses++`, `totalMisses++`.
@@ -232,9 +241,14 @@ object HabitRules {
    If not failed and the final day (`trackLength`) is marked done → `GRADUATED`.
    Otherwise `FORMING`.
 5. `atRisk = state == FORMING && effectiveStatus(currentDayNumber - 1) == MISSED &&
-   not todayMarkedDone` (and `currentDayNumber - 1 >= 1`).
+   not todayMarkedDone` (and `currentDayNumber - 1 >= 1`). Measured against the day in
+   play, so during grace it means "miss yesterday by 10:00 and it's two in a row".
 6. `bestStreak` = longest run of `DONE` in the walked timeline (up to failure day if
    failed).
+7. `undoDayNumber` = the later of {the grace day, if the window is open and it is
+   marked; today, if it is marked}; `null` if neither. `canUndoMark = undoDayNumber != null`
+   (and `state == FORMING`). `graceDeadline` = today's date at 10:00 local, non-null iff
+   `currentDayNumber < calendarDayNumber`.
 
 ### 4.2 Edge cases the engine must handle (and test)
 
@@ -249,6 +263,14 @@ object HabitRules {
 - Day 100 is an implied miss and day 99 was also a miss → `FAILED(TWO_IN_A_ROW, 100)`.
 - `currentDayNumber` far past `trackLength` (app unopened for weeks) → evaluate as if
   each day rolled over in order; report the first failure or graduation.
+- **Grace window (all in the habit's zone):** at 08:00 on calendar day N with day N−1
+  unmarked → day in play is N−1, `graceDeadline` = day N at 10:00, N−1 is pending (not
+  a miss). At 10:01 → day in play is N, N−1 has locked as a miss. Once N−1 is marked,
+  day in play is N even before 10:00, and N−1 stays undoable (`undoDayNumber = N−1`)
+  until 10:00. After 10:00 a marked N−1 is finalized and cannot be undone.
+- **Grace at the track boundary:** day 100 (or day 30 for a tune-up) still markable at
+  08:00 on the calendar day after it; missing it past 10:00 with day 99 also missed →
+  `FAILED(TWO_IN_A_ROW, 100)`.
 - Timezone: start date in `Pacific/Kiritimati` vs device in `Pacific/Honolulu` — day
   number computed from the habit's zone only.
 - Tune-up: identical logic with `trackLength = 30`.

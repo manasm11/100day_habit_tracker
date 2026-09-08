@@ -338,4 +338,54 @@ class HabitRulesTest {
         assertEquals(HabitState.GRADUATED, s.state)
         assertEquals(false, s.canUndoMark)
     }
+
+    @Test fun can_undo_the_grace_day_while_the_window_is_still_open() {
+        // 08:00 day 5; days 1-4 done (day 4 was the grace day, just marked) -> markable advances to 5
+        val s = HabitRules.evaluate(input(done = intArrayOf(1, 2, 3, 4)), at(5, 8))
+        assertEquals(5, s.currentDayNumber)
+        assertEquals(true, s.canUndoMark)
+        assertEquals(4, s.undoDayNumber)            // you can still take back yesterday's mark
+        assertEquals(true, s.canMarkToday)          // and still mark today
+    }
+
+    @Test fun cannot_undo_the_grace_day_after_the_window_closes() {
+        // 10:30 day 5; day 4 is done and now finalized -> no editing history
+        val s = HabitRules.evaluate(input(done = intArrayOf(1, 2, 3, 4)), at(5, 10, 30))
+        assertEquals(5, s.currentDayNumber)
+        assertEquals(false, s.canUndoMark)
+        assertNull(s.undoDayNumber)
+    }
+
+    @Test fun undo_target_is_today_when_both_today_and_the_grace_day_are_marked() {
+        // 08:00 day 5; days 1-5 done -> undo takes back today, not the grace day
+        val s = HabitRules.evaluate(input(done = intArrayOf(1, 2, 3, 4, 5)), at(5, 8))
+        assertEquals(true, s.canUndoMark)
+        assertEquals(5, s.undoDayNumber)
+    }
+
+    @Test fun undo_target_is_null_when_the_markable_day_is_not_marked() {
+        val s = HabitRules.evaluate(input(done = intArrayOf(1, 2)), nowForDay(3))
+        assertNull(s.undoDayNumber)
+    }
+
+    // --- tune-up (30-day track) + grace ---
+
+    @Test fun tuneup_grace_lets_you_still_mark_day_30() {
+        // calendar day 31, 08:00; days 1-29 done, day 30 not yet marked
+        val s = HabitRules.evaluate(
+            input(trackLength = 30, done = (1..29).toList().toIntArray()), at(31, 8),
+        )
+        assertEquals(30, s.currentDayNumber)
+        assertEquals(HabitState.FORMING, s.state)
+        assertEquals(true, s.canMarkToday)
+    }
+
+    @Test fun tuneup_day_30_missed_after_grace_with_day_29_missed_fails() {
+        val s = HabitRules.evaluate(
+            input(trackLength = 30, done = (1..28).toList().toIntArray()), at(31, 11),
+        )
+        assertEquals(HabitState.FAILED, s.state)
+        assertEquals(FailureReason.TWO_IN_A_ROW, s.failureReason)
+        assertEquals(30, s.failedOnDay)
+    }
 }
