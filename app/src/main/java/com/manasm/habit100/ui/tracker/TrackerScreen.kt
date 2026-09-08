@@ -261,7 +261,7 @@ private fun FormingContent(s: TrackerUiState.Forming, vm: TrackerViewModel) {
                 Text(
                     "This clears the check-in for day ${s.undoDayNumber}. You can mark it again " +
                         if (undoIsGraceDay) {
-                            "before it locks${s.graceDeadlineText?.let { " at $it" } ?: ""}."
+                            "until ${s.graceDeadlineText ?: "10:00 AM"}, when it locks."
                         } else {
                             "before midnight."
                         },

@@ -49,9 +49,11 @@ These rules are the whole point of the product. There must be zero ambiguity.
   play becomes today. This is strictly forward-only: the day in play never goes back
   more than one calendar day, and only while that day is genuinely unfinished. Once the
   previous day is marked done, the day in play is today even before 10:00.
-- **Same-day undo.** The user can un-mark the day in play (today, or the grace day)
-  behind a confirmation dialog — it returns to pending and can be marked again before
-  it locks. Undo never reaches a finalized past day.
+- **Same-day undo.** The user can un-mark a day that has not yet locked — today (until
+  local midnight), or a grace day whose window is still open (until 10:00), even after
+  it has been marked — behind a confirmation dialog. The day returns to pending and can
+  be marked again. Undo never reaches a finalized day. When both today and the grace
+  day are marked, undo targets today. (See §4.1 step 7 for the precise `undoDayNumber`.)
 - If the day in play is not marked done by the time it locks (local midnight, or 10:00
   for a grace day), it becomes a **miss** at rollover.
 
