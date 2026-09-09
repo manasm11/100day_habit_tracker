@@ -18,7 +18,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -37,12 +36,10 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.Lifecycle
-import com.manasm.habit100.BuildConfig
 import com.manasm.habit100.ui.GridSize
 import com.manasm.habit100.ui.HabitGrid
 import com.manasm.habit100.ui.components.StatCard
 import com.manasm.habit100.ui.theme.HabitColors
-import java.time.LocalDate
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -83,39 +80,7 @@ fun TrackerScreen(
                     is TrackerUiState.Forming -> FormingContent(s, vm)
                 }
             }
-            // Dev panel: available in Empty / Forming / Failed (Graduated routes away).
-            if (BuildConfig.DEBUG && s !is TrackerUiState.Graduated && s != TrackerUiState.Loading) {
-                DevPanel(vm)
-            }
         }
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun DevPanel(vm: TrackerViewModel) {
-    var dateText by rememberSaveable { mutableStateOf("") }
-    Column(
-        Modifier.fillMaxWidth().padding(top = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp),
-    ) {
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedButton(onClick = vm::devAdvanceDay) { Text("dev: +1 day") }
-            OutlinedButton(
-                onClick = {
-                    runCatching { LocalDate.parse(dateText.trim()) }
-                        .getOrNull()
-                        ?.let(vm::devSetToday)
-                },
-            ) { Text("dev: set date") }
-        }
-        OutlinedTextField(
-            value = dateText,
-            onValueChange = { dateText = it },
-            singleLine = true,
-            label = { Text("yyyy-MM-dd") },
-            modifier = Modifier.fillMaxWidth(),
-        )
     }
 }
 

@@ -52,7 +52,7 @@ class TrackerViewModelTest {
         db = testDb
         val d = testDb.db
         val repo = HabitRepository(d, d.habitDao(), d.dayLogDao(), d.checkinDao(), clock)
-        return repo to TrackerViewModel(repo, clock, null, null).also { vm = it }
+        return repo to TrackerViewModel(repo).also { vm = it }
     }
 
     private suspend fun TrackerViewModel.settled(): TrackerUiState =

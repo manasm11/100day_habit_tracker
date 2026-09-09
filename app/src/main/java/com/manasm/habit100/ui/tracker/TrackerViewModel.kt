@@ -2,10 +2,6 @@ package com.manasm.habit100.ui.tracker
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.manasm.habit100.clock.Clock
-import com.manasm.habit100.clock.DevClock
-import com.manasm.habit100.clock.DevClockStore
-import com.manasm.habit100.clock.SystemClock
 import com.manasm.habit100.data.ActiveHabit
 import com.manasm.habit100.data.HabitEntity
 import com.manasm.habit100.data.HabitRepository
@@ -19,19 +15,16 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
 class TrackerViewModel(
     private val repo: HabitRepository,
-    private val clock: Clock,
-    private val devClockStore: DevClockStore?,
-    private val devClock: DevClock?,
 ) : ViewModel() {
 
-    // Ruling 3: an explicit hook so the snapshot re-derives against the current clock
-    // even when nothing in the database changed (e.g. after advancing a dev/fake clock).
+    // An explicit hook so the snapshot re-derives against the current clock even when nothing
+    // in the database changed — the tracker calls it on ON_RESUME (a session left open across
+    // local midnight, where the ON_START rollover won't have fired).
     private val refreshTicker = MutableStateFlow(0)
 
     fun refresh() { refreshTicker.value++ }
@@ -151,30 +144,6 @@ class TrackerViewModel(
             repo.observeFailedHabitFlow().first()?.let {
                 runCatching { repo.abandonHabit(it.id) }
             }
-            refreshTicker.value++
-        }
-    }
-
-    fun devAdvanceDay() {
-        val store = devClockStore ?: return
-        viewModelScope.launch {
-            store.addDays(1)
-            devClock?.update(store.offsetSeconds.first())
-            repo.observeActive().first()?.let { repo.applyTransition(it.habit.id) }
-            refreshTicker.value++
-        }
-    }
-
-    fun devSetToday(date: LocalDate) {
-        val store = devClockStore ?: return
-        viewModelScope.launch {
-            val active = repo.observeActive().first()
-            val zone = active?.let { ZoneId.of(it.habit.timeZoneId) } ?: ZoneId.systemDefault()
-            // Noon so dev time-travel lands outside the morning grace window by default.
-            val target = date.atTime(12, 0).atZone(zone).toInstant()
-            store.setOffsetSeconds(target.epochSecond - SystemClock().now().epochSecond)
-            devClock?.update(store.offsetSeconds.first())
-            active?.let { repo.applyTransition(it.habit.id) }
             refreshTicker.value++
         }
     }

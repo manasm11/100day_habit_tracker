@@ -13,12 +13,7 @@ class HabitViewModelFactory(private val container: AppContainer) : ViewModelProv
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>, extras: CreationExtras): T =
         when (modelClass) {
-            TrackerViewModel::class.java -> TrackerViewModel(
-                container.repository,
-                container.clock,
-                container.devClockStore,
-                container.devClock,
-            )
+            TrackerViewModel::class.java -> TrackerViewModel(container.repository)
             NewHabitViewModel::class.java -> NewHabitViewModel(container.repository)
             ShelfViewModel::class.java -> ShelfViewModel(container.repository)
             else -> error("Unknown ViewModel class: $modelClass")

@@ -27,16 +27,6 @@ class HabitApplication : Application() {
         super.onCreate()
         container = AppContainer(this)
 
-        // Debug only: keep the in-memory DevClock in sync with the persisted offset so a
-        // saved offset takes effect on the next process start and stays live afterwards.
-        val devClock = container.devClock
-        val devClockStore = container.devClockStore
-        if (devClock != null && devClockStore != null) {
-            appScope.launch {
-                devClockStore.offsetSeconds.collect { devClock.update(it) }
-            }
-        }
-
         // Foreground catch-up: run rollover every time the app is brought to the foreground so
         // elapsed misses are filled and terminal transitions persisted while the user is looking.
         ProcessLifecycleOwner.get().lifecycle.addObserver(object : DefaultLifecycleObserver {
