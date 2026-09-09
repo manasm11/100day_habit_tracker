@@ -51,11 +51,11 @@ fun TargetScreen(vm: TargetViewModel, onDone: () -> Unit, onBack: () -> Unit) {
         }
     }
 
-    // Keep the screen on while a session is in progress (not once done).
-    val active = ((ui as? TargetUi.Duration)?.let { !it.done } ?: (ui is TargetUi.Reps && !(ui as TargetUi.Reps).done))
+    // Keep the screen on while the timer is running or reps are being counted (not once done).
+    val keepOn = running || (ui is TargetUi.Reps && !(ui as TargetUi.Reps).done)
     val view = LocalView.current
-    DisposableEffect(active) {
-        view.keepScreenOn = active
+    DisposableEffect(keepOn) {
+        view.keepScreenOn = keepOn
         onDispose { view.keepScreenOn = false }
     }
 
@@ -63,7 +63,8 @@ fun TargetScreen(vm: TargetViewModel, onDone: () -> Unit, onBack: () -> Unit) {
     val justDone = ((ui as? TargetUi.Duration)?.let { it.done && !it.alreadyDone } == true) ||
         ((ui as? TargetUi.Reps)?.let { it.done && !it.alreadyDone } == true)
     // Defensive: the screen was opened for a habit with no target — go back.
-    LaunchedEffect(ui) { if (ui is TargetUi.NoTarget) onBack() }
+    val noTarget = ui is TargetUi.NoTarget
+    LaunchedEffect(noTarget) { if (noTarget) onBack() }
 
     LaunchedEffect(justDone) {
         if (!justDone) return@LaunchedEffect
@@ -76,11 +77,12 @@ fun TargetScreen(vm: TargetViewModel, onDone: () -> Unit, onBack: () -> Unit) {
                 }
             }
         }
-        runCatching {
-            val tone = ToneGenerator(AudioManager.STREAM_NOTIFICATION, 80)
-            tone.startTone(ToneGenerator.TONE_PROP_BEEP2, 300)
+        val tone = runCatching { ToneGenerator(AudioManager.STREAM_NOTIFICATION, 80) }.getOrNull()
+        try {
+            tone?.startTone(ToneGenerator.TONE_PROP_BEEP2, 300)
             delay(400)
-            tone.release()
+        } finally {
+            tone?.release()
         }
     }
 
