@@ -55,7 +55,6 @@ class ReminderWorkTest {
 
     @Test fun mark_done_marks_the_notified_day_and_clears_the_notification() = runTest {
         container.repository.createHabit("Read", zone)
-        val id = container.repository.observeActive().first()!!.habit.id
         container.notifier.post(ReminderContent("t", "b"))
         assertEquals(1, shadowOf(nm).allNotifications.size)
 
@@ -67,7 +66,6 @@ class ReminderWorkTest {
 
     @Test fun mark_done_is_ignored_when_the_day_in_play_no_longer_matches() = runTest {
         container.repository.createHabit("Read", zone)
-        val id = container.repository.observeActive().first()!!.habit.id
 
         // notification was for day 2, but the day in play is 1
         ReminderWork.handle(container, HabitNotifier.ACTION_MARK_DONE, notifiedDay = 2)
