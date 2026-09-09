@@ -27,6 +27,8 @@ sealed interface TrackerUiState {
         val canUndo: Boolean,
         /** The day the undo affordance would clear (0 when [canUndo] is false). */
         val undoDayNumber: Int,
+        /** The habit has a timer / rep target — the primary action is "Start" (§14). */
+        val hasTarget: Boolean,
     ) : TrackerUiState
 
     data class Graduated(val habitId: Long) : TrackerUiState

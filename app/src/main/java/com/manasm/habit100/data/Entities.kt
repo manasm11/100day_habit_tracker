@@ -23,6 +23,10 @@ data class HabitEntity(
     val failureReason: String?,
     val failedOnDay: Int?,
     val graduationAcknowledged: Boolean = true,
+    // How the habit is done — see domain/HabitTarget. null == a plain tap-to-mark habit.
+    val targetKind: String? = null,     // duration | reps
+    val targetSeconds: Int? = null,
+    val targetReps: Int? = null,
 )
 
 @Entity(

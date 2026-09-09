@@ -45,6 +45,25 @@ class HabitRepositoryTest {
         assertTrue(a2.snapshot.todayMarkedDone)
     }
 
+    @Test fun create_with_a_duration_target_round_trips() = runTest {
+        repo.createHabit("Meditate", zone, com.manasm.habit100.domain.HabitTarget.Duration(600))
+        val h = repo.observeActive().first()!!.habit
+        assertEquals("duration", h.targetKind)
+        assertEquals(600, h.targetSeconds)
+        assertEquals(com.manasm.habit100.domain.HabitTarget.Duration(600), h.target())
+    }
+
+    @Test fun create_with_a_reps_target_round_trips() = runTest {
+        repo.createHabit("Pushups", zone, com.manasm.habit100.domain.HabitTarget.Reps(40))
+        val h = repo.observeActive().first()!!.habit
+        assertEquals(com.manasm.habit100.domain.HabitTarget.Reps(40), h.target())
+    }
+
+    @Test fun create_without_a_target_is_a_plain_habit() = runTest {
+        repo.createHabit("Floss", zone)
+        assertEquals(com.manasm.habit100.domain.HabitTarget.None, repo.observeActive().first()!!.habit.target())
+    }
+
     @Test fun second_create_is_rejected() = runTest {
         repo.createHabit("Read", zone)
         try {

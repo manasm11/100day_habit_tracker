@@ -9,7 +9,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
     entities = [HabitEntity::class, DayLogEntity::class, MaintenanceCheckinEntity::class],
-    version = 1,
+    version = 2,
     exportSchema = true,
 )
 @TypeConverters(Converters::class)
@@ -29,6 +29,7 @@ abstract class HabitDatabase : RoomDatabase() {
         fun build(context: Context): HabitDatabase =
             Room.databaseBuilder(context, HabitDatabase::class.java, "habit.db")
                 .addCallback(CALLBACK)
+                .addMigrations(*HabitMigrations.ALL)
                 .build()
     }
 }

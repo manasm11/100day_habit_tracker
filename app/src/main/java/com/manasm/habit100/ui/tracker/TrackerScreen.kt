@@ -48,6 +48,7 @@ fun TrackerScreen(
     onStartHabit: () -> Unit,
     onGraduated: (Long) -> Unit,
     onOpenShelf: () -> Unit,
+    onStartTarget: (Long) -> Unit,
 ) {
     val state by vm.state.collectAsStateWithLifecycle()
 
@@ -77,7 +78,7 @@ fun TrackerScreen(
                     TrackerUiState.Empty -> EmptyState(onStartHabit)
                     is TrackerUiState.Graduated -> Unit // routed away by LaunchedEffect
                     is TrackerUiState.Failed -> FailedState(s, vm)
-                    is TrackerUiState.Forming -> FormingContent(s, vm)
+                    is TrackerUiState.Forming -> FormingContent(s, vm, onStartTarget)
                 }
             }
         }
@@ -121,7 +122,11 @@ private fun FailedState(s: TrackerUiState.Failed, vm: TrackerViewModel) {
 }
 
 @Composable
-private fun FormingContent(s: TrackerUiState.Forming, vm: TrackerViewModel) {
+private fun FormingContent(
+    s: TrackerUiState.Forming,
+    vm: TrackerViewModel,
+    onStartTarget: (Long) -> Unit,
+) {
     var confirmUndo by rememberSaveable { mutableStateOf(false) }
     val dayWord = if (s.isGraceDay) "yesterday" else "today"
 
@@ -186,33 +191,40 @@ private fun FormingContent(s: TrackerUiState.Forming, vm: TrackerViewModel) {
         Legend()
 
         Column {
-            Button(
-                onClick = vm::markDone,
-                enabled = s.canMarkToday,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(56.dp),
-            ) {
-                Text(
-                    when {
-                        s.alreadyDoneToday -> "Marked $dayWord ✓"
-                        s.isGraceDay -> "Mark yesterday done"
-                        else -> "Mark today done"
-                    },
-                )
-            }
-            if (s.canUndo) {
+            if (s.hasTarget && s.canMarkToday) {
+                Button(
+                    onClick = { onStartTarget(s.habitId) },
+                    modifier = Modifier.fillMaxWidth().height(56.dp),
+                ) { Text(if (s.isGraceDay) "Start (for yesterday)" else "Start") }
                 Spacer(Modifier.height(6.dp))
-                TextButton(onClick = { confirmUndo = true }) {
-                    Text("Undo — I didn't actually do it")
+                TextButton(onClick = vm::markDone) { Text("I did it elsewhere — mark $dayWord done") }
+            } else {
+                Button(
+                    onClick = vm::markDone,
+                    enabled = s.canMarkToday,
+                    modifier = Modifier.fillMaxWidth().height(56.dp),
+                ) {
+                    Text(
+                        when {
+                            s.alreadyDoneToday -> "Marked $dayWord ✓"
+                            s.isGraceDay -> "Mark yesterday done"
+                            else -> "Mark today done"
+                        },
+                    )
                 }
-            } else if (!s.canMarkToday) {
-                Spacer(Modifier.height(6.dp))
-                Text(
-                    if (s.alreadyDoneToday) "Come back tomorrow."
-                    else "Nothing to mark right now.",
-                    style = MaterialTheme.typography.bodySmall,
-                )
+                if (s.canUndo) {
+                    Spacer(Modifier.height(6.dp))
+                    TextButton(onClick = { confirmUndo = true }) {
+                        Text("Undo — I didn't actually do it")
+                    }
+                } else if (!s.canMarkToday) {
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        if (s.alreadyDoneToday) "Come back tomorrow."
+                        else "Nothing to mark right now.",
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
             }
         }
     }

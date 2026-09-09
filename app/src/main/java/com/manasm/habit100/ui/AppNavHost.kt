@@ -16,6 +16,8 @@ import com.manasm.habit100.ui.newhabit.NewHabitScreen
 import com.manasm.habit100.ui.newhabit.NewHabitViewModel
 import com.manasm.habit100.ui.shelf.ShelfScreen
 import com.manasm.habit100.ui.shelf.ShelfViewModel
+import com.manasm.habit100.ui.target.TargetScreen
+import com.manasm.habit100.ui.target.TargetViewModel
 import com.manasm.habit100.ui.tracker.TrackerScreen
 import com.manasm.habit100.ui.tracker.TrackerViewModel
 
@@ -24,6 +26,7 @@ object Routes {
     const val NEW_HABIT = "newHabit"
     const val GRADUATION = "graduation"
     const val SHELF = "shelf"
+    const val TARGET = "target"
 }
 
 /**
@@ -45,6 +48,7 @@ fun AppNavHost(container: AppContainer) {
                     }
                 },
                 onOpenShelf = { nav.navigate(Routes.SHELF) },
+                onStartTarget = { id -> nav.navigate("${Routes.TARGET}/$id") },
             )
         }
         composable(Routes.NEW_HABIT) {
@@ -87,6 +91,23 @@ fun AppNavHost(container: AppContainer) {
         composable(Routes.SHELF) {
             val vm: ShelfViewModel = viewModel(factory = HabitViewModelFactory(container))
             ShelfScreen(vm = vm, onBack = { nav.popBackStack() })
+        }
+        composable(
+            "${Routes.TARGET}/{habitId}",
+            arguments = listOf(navArgument("habitId") { type = NavType.LongType }),
+        ) { entry ->
+            val id = entry.arguments!!.getLong("habitId")
+            val vm: TargetViewModel = viewModel(
+                key = "target/$id",
+                factory = viewModelFactory {
+                    initializer { TargetViewModel(container.repository, container.clock, id) }
+                },
+            )
+            TargetScreen(
+                vm = vm,
+                onDone = { nav.popBackStack() },
+                onBack = { nav.popBackStack() },
+            )
         }
     }
 }

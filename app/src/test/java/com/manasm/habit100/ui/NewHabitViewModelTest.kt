@@ -7,6 +7,8 @@ import com.manasm.habit100.support.clearForTest
 import com.manasm.habit100.ui.newhabit.NewHabitViewModel
 import kotlinx.coroutines.test.runTest
 import org.junit.After
+import kotlinx.coroutines.flow.first
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -56,5 +58,39 @@ class NewHabitViewModelTest {
         val vm2 = newHabitVm(r)
         vm2.onNameChange("Run")
         assertFalse(vm2.create(ZoneId.of("America/New_York")))
+    }
+
+    @Test fun a_duration_target_needs_a_positive_minute_count() {
+        val vm = newHabitVm(repo())
+        vm.onNameChange("Meditate")
+        vm.onTargetChoice(NewHabitViewModel.TargetChoice.DURATION)
+        assertFalse(vm.canCreateEnabled.value)          // no minutes yet
+        vm.onTargetValueChange("0")
+        assertFalse(vm.canCreateEnabled.value)
+        vm.onTargetValueChange("10")
+        assertTrue(vm.canCreateEnabled.value)
+    }
+
+    @Test fun creates_a_duration_habit_from_minutes() = runTest {
+        val r = repo()
+        val vm = newHabitVm(r)
+        vm.onNameChange("Meditate")
+        vm.onTargetChoice(NewHabitViewModel.TargetChoice.DURATION)
+        vm.onTargetValueChange("10")
+        assertTrue(vm.create(ZoneId.of("America/New_York")))
+        val h = r.observeActive().first()!!.habit
+        assertEquals("duration", h.targetKind)
+        assertEquals(600, h.targetSeconds)
+    }
+
+    @Test fun creates_a_reps_habit_from_a_count() = runTest {
+        val r = repo()
+        val vm = newHabitVm(r)
+        vm.onNameChange("Pushups")
+        vm.onTargetChoice(NewHabitViewModel.TargetChoice.REPS)
+        vm.onTargetValueChange("25")
+        assertTrue(vm.create(ZoneId.of("America/New_York")))
+        val h = r.observeActive().first()!!.habit
+        assertEquals(25, h.targetReps)
     }
 }

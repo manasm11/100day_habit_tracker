@@ -175,6 +175,20 @@ class TrackerViewModelTest {
         assertFalse(s3.canUndo)
     }
 
+    @Test fun forming_state_flags_a_targeted_habit() = runTest {
+        val (repo, vm) = setup(clockAt(LocalDate.of(2026, 1, 1)))
+        repo.createHabit("Meditate", zone, com.manasm.habit100.domain.HabitTarget.Duration(600))
+        val s = vm.settled() as TrackerUiState.Forming
+        assertTrue(s.hasTarget)
+    }
+
+    @Test fun forming_state_of_a_plain_habit_has_no_target() = runTest {
+        val (repo, vm) = setup(clockAt(LocalDate.of(2026, 1, 1)))
+        repo.createHabit("Floss", zone)
+        val s = vm.settled() as TrackerUiState.Forming
+        assertFalse(s.hasTarget)
+    }
+
     @Test fun the_grace_day_mark_can_be_undone() = runTest {
         val clock = clockAt(LocalDate.of(2026, 1, 1))
         val (repo, vm) = setup(clock)

@@ -49,10 +49,22 @@ class HabitRepository(
             }
         }
 
-    suspend fun createHabit(name: String, zoneId: ZoneId) {
+    /** A one-shot read of the forming habit + its current-attempt logs + a fresh snapshot. */
+    suspend fun currentActive(): ActiveHabit? {
+        val habit = habitDao.activeOnce() ?: return null
+        val logs = dayLogDao.forAttempt(habit.id, habit.currentAttempt).map { it.toDayLog() }
+        return ActiveHabit(habit, logs, snapshotOf(habit, logs))
+    }
+
+    suspend fun createHabit(
+        name: String,
+        zoneId: ZoneId,
+        target: com.manasm.habit100.domain.HabitTarget = com.manasm.habit100.domain.HabitTarget.None,
+    ) {
         check(habitDao.activeCount() == 0) { "A habit is already forming" }
         val now = clock.now()
         val today = now.atZone(zoneId).toLocalDate()
+        val (kind, seconds, reps) = target.toColumns()
         habitDao.insert(
             HabitEntity(
                 name = name.trim(),
@@ -67,6 +79,9 @@ class HabitRepository(
                 graduatedAt = null,
                 failureReason = null,
                 failedOnDay = null,
+                targetKind = kind,
+                targetSeconds = seconds,
+                targetReps = reps,
             )
         )
     }

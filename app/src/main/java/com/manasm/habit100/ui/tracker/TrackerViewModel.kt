@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.manasm.habit100.data.ActiveHabit
 import com.manasm.habit100.data.HabitEntity
 import com.manasm.habit100.data.HabitRepository
+import com.manasm.habit100.data.target
 import com.manasm.habit100.domain.DayStatus
 import com.manasm.habit100.domain.HabitState
 import com.manasm.habit100.ui.gridCells
@@ -105,6 +106,7 @@ class TrackerViewModel(
             },
             canUndo = snap.canUndoMark,
             undoDayNumber = snap.undoDayNumber ?: 0,
+            hasTarget = a.habit.target() != com.manasm.habit100.domain.HabitTarget.None,
         )
     }
 

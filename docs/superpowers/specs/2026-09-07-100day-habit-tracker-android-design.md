@@ -581,3 +581,35 @@ fires, posts or skips, then re-arms the next occurrence.
 - **Permission:** `POST_NOTIFICATIONS` requested on launch on Android 13+. Denied →
   `NotificationManagerCompat.areNotificationsEnabled()` gate means nothing fires; the
   app is otherwise unaffected.
+
+## 14. Habit targets (v1.2.0, Stage 1)
+
+A habit may carry an optional **target** describing how it's done:
+
+- **`none`** (default) — tap "Mark today done", unchanged.
+- **`duration`** — a countdown of N seconds (meditation, reading). Stored as
+  `habits.targetSeconds`.
+- **`reps`** — a count to N (pushups, squats). Stored as `habits.targetReps`.
+- *(Stage 2: `holds` — repeated interval holds for yoga / planks.)*
+
+`habits.targetKind` ∈ `null | "duration" | "reps"`. Chosen in the new-habit flow;
+immutable for the attempt. Schema bumped v1 → v2 with `MIGRATION_1_2` adding the three
+nullable columns.
+
+**Tracker behaviour.** When the forming habit has a target, the primary button is
+**"Start"** → the timer / counter screen. A secondary **"I did it elsewhere"** still
+marks the day directly (honest-by-default, not honest-by-force — same spirit as the
+10-miss budget).
+
+**Timer / counter screen.**
+- Duration: wall-clock countdown (backgrounding doesn't pause it — you're meditating,
+  not watching the phone), Start / Pause / Reset, keeps the screen on while running.
+  Reaching 0 → a short chime + vibration → **auto-marks the day in play** (respects the
+  grace window via `markTodayDone`) if not already marked.
+- Reps: a large count, +1 / −1, keeps the screen on. Reaching the target → auto-marks;
+  counting may continue past the target.
+- Stage 1 keeps the timer in-app (no foreground service); process death mid-timer loses
+  the countdown. A foreground service for background robustness is a Stage 1b follow-up.
+
+The rule engine, grace window, rollover, and graduation are **unchanged** — a targeted
+habit still only needs "was day N marked done".
