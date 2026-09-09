@@ -58,4 +58,24 @@ class ReminderTimesTest {
         assertEquals(LocalTime.of(9, 0), GRACE_TIME)
         assertEquals(LocalTime.of(19, 30), EVENING_TIME)
     }
+
+    @Test fun keeps_wall_clock_time_across_the_spring_forward_transition() {
+        // US spring-forward is 2026-03-08 02:00. From 09:30 that morning, next 09:00 is Mar 9
+        // at 09:00 local — the +24h roll must land on the wall clock, not add 24 real hours.
+        val springDay = LocalDate.of(2026, 3, 8)
+        val at0930 = springDay.atTime(9, 30).atZone(ny).toInstant()
+        assertEquals(
+            springDay.plusDays(1).atTime(9, 0).atZone(ny).toInstant(),
+            nextTrigger(ReminderKind.GRACE, ny, at0930),
+        )
+    }
+
+    @Test fun works_in_a_non_us_zone() {
+        val tokyo = ZoneId.of("Asia/Tokyo")
+        val d = LocalDate.of(2026, 6, 1)
+        assertEquals(
+            d.atTime(19, 30).atZone(tokyo).toInstant(),
+            nextTrigger(ReminderKind.EVENING, tokyo, d.atTime(9, 0).atZone(tokyo).toInstant()),
+        )
+    }
 }

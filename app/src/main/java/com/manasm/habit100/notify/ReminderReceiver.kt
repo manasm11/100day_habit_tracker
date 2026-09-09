@@ -7,50 +7,31 @@ import com.manasm.habit100.HabitApplication
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
-import java.time.ZoneId
 
 /**
- * Fires for a GRACE / EVENING alarm (post the reminder if still relevant, then reschedule that
- * kind for the next day) and for the notification's "Mark done" action.
+ * Fires for a GRACE / EVENING alarm and for the notification's "Mark done" action. The work
+ * itself lives in [ReminderWork]; this is just the `goAsync` + coroutine shell.
  */
 class ReminderReceiver : BroadcastReceiver() {
 
+    private val known = setOf(
+        ReminderKind.GRACE.action,
+        ReminderKind.EVENING.action,
+        HabitNotifier.ACTION_MARK_DONE,
+    )
+
     override fun onReceive(context: Context, intent: Intent) {
+        if (intent.action !in known) return
         val container = (context.applicationContext as HabitApplication).container
+        val notifiedDay = intent.getIntExtra(HabitNotifier.EXTRA_FOR_DAY, 0)
         val pending = goAsync()
         CoroutineScope(SupervisorJob() + Dispatchers.Default).launch {
             try {
-                when (intent.action) {
-                    ReminderKind.GRACE.action -> fireReminder(container, ReminderKind.GRACE)
-                    ReminderKind.EVENING.action -> fireReminder(container, ReminderKind.EVENING)
-                    HabitNotifier.ACTION_MARK_DONE -> markDone(container)
-                }
+                ReminderWork.handle(container, intent.action, notifiedDay)
             } finally {
                 pending.finish()
             }
         }
-    }
-
-    private suspend fun fireReminder(
-        container: com.manasm.habit100.AppContainer,
-        kind: ReminderKind,
-    ) {
-        val active = container.repository.observeActive().first()
-        if (active != null) {
-            val snap = container.repository.snapshotOf(active.habit, active.logs)
-            reminderFor(kind, active.habit.name, snap, active.habit.attemptTrackLength)
-                ?.let { container.notifier.post(it) }
-        }
-        val zone = active?.let { ZoneId.of(it.habit.timeZoneId) } ?: ZoneId.systemDefault()
-        container.reminderScheduler.scheduleAll(zone)
-    }
-
-    private suspend fun markDone(container: com.manasm.habit100.AppContainer) {
-        container.repository.observeActive().first()?.let {
-            runCatching { container.repository.markTodayDone(it.habit.id) }
-        }
-        container.notifier.cancel()
     }
 }

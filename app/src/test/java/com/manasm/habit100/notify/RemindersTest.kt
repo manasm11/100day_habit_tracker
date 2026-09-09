@@ -39,8 +39,14 @@ class RemindersTest {
         assertNull(reminderFor(ReminderKind.EVENING, habitName = null, snapshot = null))
     }
 
-    @Test fun nothing_when_the_attempt_is_not_forming() {
+    @Test fun nothing_when_the_attempt_has_failed() {
         val s = snapshot(state = HabitState.FAILED)
+        assertNull(reminderFor(ReminderKind.GRACE, "Read", s))
+        assertNull(reminderFor(ReminderKind.EVENING, "Read", s))
+    }
+
+    @Test fun nothing_when_the_attempt_has_graduated() {
+        val s = snapshot(state = HabitState.GRADUATED, markableDay = 100, calendarDay = 101)
         assertNull(reminderFor(ReminderKind.GRACE, "Read", s))
         assertNull(reminderFor(ReminderKind.EVENING, "Read", s))
     }
@@ -52,15 +58,10 @@ class RemindersTest {
         assertEquals("Yesterday isn't marked. Do it before 10:00 AM or it counts as a miss.", c.body)
     }
 
-    @Test fun no_grace_reminder_when_it_is_not_a_grace_day() {
+    @Test fun no_grace_reminder_when_markable_and_calendar_day_agree() {
+        // Either it's not the morning, or yesterday was already marked — a marked grace day
+        // advances markableDay so markable == calendar. Both cases: no grace reminder.
         val s = snapshot(markableDay = 5, calendarDay = 5)
-        assertNull(reminderFor(ReminderKind.GRACE, "Read", s))
-    }
-
-    @Test fun no_grace_reminder_once_the_grace_day_is_marked() {
-        // grace day marked -> markable advances; calendarDay stays ahead only while unmarked,
-        // so a marked grace day looks like markable == calendar
-        val s = snapshot(markableDay = 5, calendarDay = 5, marked = false)
         assertNull(reminderFor(ReminderKind.GRACE, "Read", s))
     }
 

@@ -9,6 +9,7 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import com.manasm.habit100.MainActivity
 import com.manasm.habit100.R
+import java.time.Instant
 
 /** Owns the reminder notification channel and posts / clears the single reminder notification. */
 class HabitNotifier(private val context: Context) {
@@ -23,7 +24,13 @@ class HabitNotifier(private val context: Context) {
         )
     }
 
-    fun post(content: ReminderContent) {
+    /**
+     * @param expiresAt when the reminder stops being actionable (the grace cutoff, or midnight)
+     *        — the notification auto-dismisses then so a stale "Mark done" can't mark the wrong day.
+     * @param forDay the day-in-play the notification is about; the "Mark done" action only marks
+     *        if the day-in-play still matches when it is tapped.
+     */
+    fun post(content: ReminderContent, expiresAt: Instant? = null, forDay: Int = 0) {
         ensureChannel()
         val nm = NotificationManagerCompat.from(context)
         if (!nm.areNotificationsEnabled()) return
@@ -34,11 +41,13 @@ class HabitNotifier(private val context: Context) {
         )
         val markDone = PendingIntent.getBroadcast(
             context, 1,
-            Intent(context, ReminderReceiver::class.java).setAction(ACTION_MARK_DONE),
+            Intent(context, ReminderReceiver::class.java)
+                .setAction(ACTION_MARK_DONE)
+                .putExtra(EXTRA_FOR_DAY, forDay),
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
 
-        val notification = NotificationCompat.Builder(context, CHANNEL_ID)
+        val builder = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_stat_reminder)
             .setContentTitle(content.title)
             .setContentText(content.body)
@@ -47,10 +56,14 @@ class HabitNotifier(private val context: Context) {
             .setAutoCancel(true)
             .setCategory(NotificationCompat.CATEGORY_REMINDER)
             .addAction(0, "Mark done", markDone)
-            .build()
+
+        expiresAt?.let {
+            val remaining = it.toEpochMilli() - System.currentTimeMillis()
+            if (remaining > 0) builder.setTimeoutAfter(remaining)
+        }
 
         try {
-            nm.notify(NOTIFICATION_ID, notification)
+            nm.notify(NOTIFICATION_ID, builder.build())
         } catch (_: SecurityException) {
             // POST_NOTIFICATIONS revoked between the check and here — nothing to do.
         }
@@ -62,5 +75,6 @@ class HabitNotifier(private val context: Context) {
         const val CHANNEL_ID = "reminders"
         const val NOTIFICATION_ID = 100
         const val ACTION_MARK_DONE = "com.manasm.habit100.notify.MARK_DONE"
+        const val EXTRA_FOR_DAY = "for_day"
     }
 }

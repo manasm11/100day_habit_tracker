@@ -5,6 +5,7 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import com.manasm.habit100.clock.Clock
+import com.manasm.habit100.data.ActiveHabit
 import java.time.ZoneId
 
 /** Schedules the next GRACE (09:00) and EVENING (19:30) reminder alarms in the habit's zone. */
@@ -12,6 +13,11 @@ class ReminderScheduler(private val context: Context, private val clock: Clock) 
 
     private val alarmManager: AlarmManager? =
         context.getSystemService(AlarmManager::class.java)
+
+    /** Alarms should exist iff a habit is in the forming slot. */
+    fun syncFor(active: ActiveHabit?) {
+        if (active != null) scheduleAll(ZoneId.of(active.habit.timeZoneId)) else cancelAll()
+    }
 
     fun scheduleAll(zoneId: ZoneId) {
         ReminderKind.entries.forEach { schedule(it, zoneId) }

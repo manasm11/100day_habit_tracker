@@ -547,9 +547,37 @@ version catalog at scaffold time and recorded in the stage-1 checkpoint.
 
 - No weekly or custom-cadence habits — daily only. The data model leaves room for a
   future habit `type`/cadence but no non-daily logic is built.
-- No multi-user accounts, auth, social features, or notifications infrastructure
-  beyond the in-app maintenance pulse. (An auth seam is not needed for a local
-  single-user app; the repository layer is the seam if it is ever added.)
+- No multi-user accounts, auth, social features, or cloud/push infrastructure.
+  (An auth seam is not needed for a local single-user app; the repository layer is
+  the seam if it is ever added.)
 - No cloud sync or backup. Data is on-device only.
 - No more than one forming habit at a time.
 - No widget, no Wear app, no tablet-optimised layout.
+- No user-configurable reminder time, and no graduation / failure notifications (both
+  are candidate follow-ups on the reminder infrastructure described in §13).
+
+## 13. Reminders
+
+Two local reminders, scheduled while — and only while — a habit is in the forming slot:
+
+- **Grace last call**, ~09:00 in the habit's zone: if a grace day is still unmarked,
+  "Mark yesterday for ‹habit› — before 10:00 AM or it counts as a miss."
+- **Evening nudge**, ~19:30: if today is unmarked and markable (and it is not a grace
+  day, which the grace reminder covers), "Time for ‹habit› — Day N of ‹track›."
+
+`reminderFor(kind, habitName, snapshot, trackLength)` (`notify/Reminders.kt`) is the pure
+decision; a `BroadcastReceiver` recomputes it against a fresh snapshot when the alarm
+fires, posts or skips, then re-arms the next occurrence.
+
+- **Scheduling:** `AlarmManager.setAndAllowWhileIdle` (inexact, `RTC_WAKEUP`) — no
+  `SCHEDULE_EXACT_ALARM`/`USE_EXACT_ALARM` (Play-policy restricted). A ~09:00 alarm
+  against a 10:00 deadline tolerates Doze slack. Alarms are re-armed on each fire, on
+  the active habit / zone changing, on app start, and on `BOOT_COMPLETED`; cancelled
+  when no habit is forming.
+- **One notification** (`NOTIFICATION_ID` fixed) with a **"Mark done"** action. It
+  carries the day-in-play it was posted for; the action only marks if that still
+  matches, and the notification `setTimeoutAfter`s its lock time so a stale tap can't
+  mark the wrong day.
+- **Permission:** `POST_NOTIFICATIONS` requested on launch on Android 13+. Denied →
+  `NotificationManagerCompat.areNotificationsEnabled()` gate means nothing fires; the
+  app is otherwise unaffected.

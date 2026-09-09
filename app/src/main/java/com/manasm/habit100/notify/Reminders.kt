@@ -27,6 +27,8 @@ fun reminderFor(
 
     return when (kind) {
         ReminderKind.GRACE ->
+            // isGraceDay already implies the grace day is unmarked (markableDay only steps back
+            // while yesterday is unmarked); the !todayMarkedDone check is belt-and-suspenders.
             if (isGraceDay && !snapshot.todayMarkedDone) {
                 ReminderContent(
                     title = "Mark yesterday for $habitName",

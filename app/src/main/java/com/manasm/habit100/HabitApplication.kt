@@ -14,7 +14,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.distinctUntilChangedBy
 import kotlinx.coroutines.launch
-import java.time.ZoneId
 import java.util.concurrent.TimeUnit
 
 class HabitApplication : Application() {
@@ -55,15 +54,14 @@ class HabitApplication : Application() {
             )
         }.onFailure { Log.w("HabitApplication", "Could not schedule rollover backstop work", it) }
 
-        // (Re)schedule the daily / grace-window reminder alarms whenever the active habit
-        // (and therefore its timezone) changes.
+        // Reminder alarms should exist exactly while a habit is in the forming slot, and
+        // re-arm when its timezone changes.
         container.notifier.ensureChannel()
         appScope.launch {
             container.repository.observeActive()
                 .distinctUntilChangedBy { it?.habit?.let { h -> h.id to h.timeZoneId } }
                 .collect { active ->
-                    val zone = active?.let { ZoneId.of(it.habit.timeZoneId) } ?: ZoneId.systemDefault()
-                    runCatching { container.reminderScheduler.scheduleAll(zone) }
+                    runCatching { container.reminderScheduler.syncFor(active) }
                         .onFailure { Log.w("HabitApplication", "Could not schedule reminders", it) }
                 }
         }
