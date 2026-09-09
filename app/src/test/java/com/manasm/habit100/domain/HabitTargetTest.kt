@@ -31,6 +31,18 @@ class HabitTargetTest {
         assertSame(HabitTarget.None, HabitTarget.fromColumns("reps", null, null))
     }
 
+    @Test fun value_objects_compare_by_content() {
+        assertEquals(HabitTarget.Duration(600), HabitTarget.Duration(600))
+        org.junit.Assert.assertNotEquals(HabitTarget.Duration(1), HabitTarget.Reps(1))
+        org.junit.Assert.assertNotEquals(HabitTarget.Duration(1) as HabitTarget, HabitTarget.None)
+    }
+
+    @Test fun a_kind_that_disagrees_with_its_value_column_falls_back_to_none() {
+        assertSame(HabitTarget.None, HabitTarget.fromColumns("reps", 600, null))
+        assertSame(HabitTarget.None, HabitTarget.fromColumns("duration", null, 40))
+        assertSame(HabitTarget.None, HabitTarget.fromColumns("duration", -5, null))
+    }
+
     @Test fun rejects_non_positive_values() {
         try {
             HabitTarget.Duration(0); org.junit.Assert.fail()

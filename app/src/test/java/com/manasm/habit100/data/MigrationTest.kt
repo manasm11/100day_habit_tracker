@@ -11,6 +11,7 @@ import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -80,5 +81,35 @@ class MigrationTest {
         assertEquals(HabitTarget.None, row.target())
 
         db.close()
+    }
+
+    @Test fun the_production_builder_upgrades_a_real_v1_database_without_crashing() {
+        // Guards against dropping .addMigrations() from HabitDatabase.build() — without it a
+        // v1 -> v2 upgrade throws on open (there is no fallbackToDestructiveMigration).
+        assertTrue(HabitMigrations.ALL.any { it.startVersion == 1 && it.endVersion == 2 })
+
+        val prodName = "prod-upgrade.db"
+        ctx.deleteDatabase(prodName)
+        val helper = FrameworkSQLiteOpenHelperFactory().create(
+            SupportSQLiteOpenHelper.Configuration.builder(ctx).name(prodName).callback(
+                object : SupportSQLiteOpenHelper.Callback(1) {
+                    override fun onCreate(db: SupportSQLiteDatabase) { v1Schema.forEach(db::execSQL) }
+                    override fun onUpgrade(db: SupportSQLiteDatabase, o: Int, n: Int) = Unit
+                },
+            ).build(),
+        )
+        helper.writableDatabase.execSQL(
+            "INSERT INTO habits (name,timeZoneId,status,currentAttempt,attemptStartDate," +
+                "attemptTrackLength,slipped,createdAt,graduationAcknowledged) " +
+                "VALUES ('Legacy','UTC','forming',1,'2026-01-01',100,0,0,1)",
+        )
+        helper.close()
+
+        val db = HabitDatabase.build(ctx, prodName)
+        val row = kotlinx.coroutines.runBlocking { db.habitDao().activeOnce() }!!
+        assertEquals("Legacy", row.name)
+        assertEquals(HabitTarget.None, row.target())
+        db.close()
+        ctx.deleteDatabase(prodName)
     }
 }

@@ -116,36 +116,49 @@ class TargetViewModel(
         HabitTarget.None -> false
     }
 
+    private var marking = false
+
     private fun maybeAutoMark() {
-        if (alreadyDone || !isComplete()) return
+        if (alreadyDone || marking || !isComplete()) return
+        marking = true
         viewModelScope.launch {
-            val active = repo.currentActive() ?: return@launch
-            val snap = repo.snapshotOf(active.habit, active.logs)
-            if (snap.state == HabitState.FORMING && snap.canMarkToday) {
-                runCatching { repo.markTodayDone(habitId) }
+            try {
+                val active = repo.currentActive()
+                if (active != null && active.habit.id == habitId) {
+                    val snap = repo.snapshotOf(active.habit, active.logs)
+                    if (snap.state == HabitState.FORMING && snap.canMarkToday) {
+                        runCatching { repo.markTodayDone(habitId) }
+                    }
+                    // Only claim "done" if the day is genuinely marked now.
+                    alreadyDone = repo.currentActive()?.let {
+                        repo.snapshotOf(it.habit, it.logs).todayMarkedDone
+                    } ?: false
+                }
+            } finally {
+                marking = false
+                recompute()
             }
-            alreadyDone = true
-            recompute()
         }
     }
 
     private fun recompute() {
         if (!loaded) return
+        val complete = isComplete() || alreadyDone
         _ui.value = when (val t = target) {
             HabitTarget.None -> TargetUi.NoTarget
             is HabitTarget.Reps -> TargetUi.Reps(
                 habitName = habitName,
                 count = reps,
                 target = t.count,
-                done = isComplete() || alreadyDone,
+                done = complete,
                 alreadyDone = alreadyDone,
             )
             is HabitTarget.Duration -> TargetUi.Duration(
                 habitName = habitName,
                 remainingSeconds = remainingSeconds(),
                 totalSeconds = t.seconds,
-                running = endAtMs != null,
-                done = isComplete() || alreadyDone,
+                running = endAtMs != null && !complete,
+                done = complete,
                 alreadyDone = alreadyDone,
             )
         }

@@ -83,6 +83,18 @@ class NewHabitViewModelTest {
         assertEquals(600, h.targetSeconds)
     }
 
+    @Test fun an_absurd_target_value_is_rejected_not_crashed() {
+        val vm = newHabitVm(repo())
+        vm.onNameChange("Meditate")
+        vm.onTargetChoice(NewHabitViewModel.TargetChoice.DURATION)
+        vm.onTargetValueChange("999999999")   // would overflow minutes*60
+        assertFalse(vm.canCreateEnabled.value)
+        vm.onTargetValueChange("600")         // 10 hours — the cap
+        assertTrue(vm.canCreateEnabled.value)
+        vm.onTargetValueChange("601")
+        assertFalse(vm.canCreateEnabled.value)
+    }
+
     @Test fun creates_a_reps_habit_from_a_count() = runTest {
         val r = repo()
         val vm = newHabitVm(r)

@@ -17,13 +17,22 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import android.media.AudioManager
+import android.media.ToneGenerator
+import android.os.Build
+import android.os.VibrationEffect
+import android.os.Vibrator
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.core.content.getSystemService
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.delay
 
@@ -31,6 +40,7 @@ import kotlinx.coroutines.delay
 @Composable
 fun TargetScreen(vm: TargetViewModel, onDone: () -> Unit, onBack: () -> Unit) {
     val ui by vm.ui.collectAsStateWithLifecycle()
+    val context = LocalContext.current
 
     // Tick the wall-clock timer while it is running.
     val running = (ui as? TargetUi.Duration)?.running == true
@@ -38,6 +48,39 @@ fun TargetScreen(vm: TargetViewModel, onDone: () -> Unit, onBack: () -> Unit) {
         while (running) {
             delay(500)
             vm.tick()
+        }
+    }
+
+    // Keep the screen on while a session is in progress (not once done).
+    val active = ((ui as? TargetUi.Duration)?.let { !it.done } ?: (ui is TargetUi.Reps && !(ui as TargetUi.Reps).done))
+    val view = LocalView.current
+    DisposableEffect(active) {
+        view.keepScreenOn = active
+        onDispose { view.keepScreenOn = false }
+    }
+
+    // A short chime + vibration the moment the day is auto-marked (not for "already done").
+    val justDone = ((ui as? TargetUi.Duration)?.let { it.done && !it.alreadyDone } == true) ||
+        ((ui as? TargetUi.Reps)?.let { it.done && !it.alreadyDone } == true)
+    // Defensive: the screen was opened for a habit with no target — go back.
+    LaunchedEffect(ui) { if (ui is TargetUi.NoTarget) onBack() }
+
+    LaunchedEffect(justDone) {
+        if (!justDone) return@LaunchedEffect
+        runCatching {
+            context.getSystemService<Vibrator>()?.let { v ->
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    v.vibrate(VibrationEffect.createOneShot(200, VibrationEffect.DEFAULT_AMPLITUDE))
+                } else {
+                    @Suppress("DEPRECATION") v.vibrate(200)
+                }
+            }
+        }
+        runCatching {
+            val tone = ToneGenerator(AudioManager.STREAM_NOTIFICATION, 80)
+            tone.startTone(ToneGenerator.TONE_PROP_BEEP2, 300)
+            delay(400)
+            tone.release()
         }
     }
 

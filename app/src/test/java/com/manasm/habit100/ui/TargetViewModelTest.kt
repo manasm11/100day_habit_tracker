@@ -108,6 +108,19 @@ class TargetViewModelTest {
         assertEquals(0, repo.observeActive().first()!!.snapshot.doneCount)
     }
 
+    @Test fun completing_during_the_grace_window_marks_yesterday() = runTest {
+        val (repo, id) = setup(HabitTarget.Reps(2))
+        repo.markTodayDone(id)                       // day 1 done
+        clock.instant = LocalDate.of(2026, 1, 3).atTime(8, 0).atZone(zone).toInstant() // day 2 grace
+        vm = TargetViewModel(repo, clock, id)
+        val v = vm!!
+        v.settled()
+        v.increment(); v.increment()                // hit target 2
+
+        // day 2 (the grace day) is the one that gets marked
+        assertEquals(2, repo.observeActive().first { it!!.snapshot.doneCount == 2 }!!.snapshot.doneCount)
+    }
+
     @Test fun already_marked_today_is_shown_without_re_marking() = runTest {
         val (repo, id) = setup(HabitTarget.Reps(3))
         repo.markTodayDone(id)

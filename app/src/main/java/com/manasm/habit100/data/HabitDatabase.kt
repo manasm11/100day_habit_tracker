@@ -26,8 +26,8 @@ abstract class HabitDatabase : RoomDatabase() {
             }
         }
 
-        fun build(context: Context): HabitDatabase =
-            Room.databaseBuilder(context, HabitDatabase::class.java, "habit.db")
+        fun build(context: Context, name: String = "habit.db"): HabitDatabase =
+            Room.databaseBuilder(context, HabitDatabase::class.java, name)
                 .addCallback(CALLBACK)
                 .addMigrations(*HabitMigrations.ALL)
                 .build()
