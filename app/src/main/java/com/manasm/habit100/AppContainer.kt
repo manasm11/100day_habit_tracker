@@ -8,6 +8,8 @@ import com.manasm.habit100.clock.SystemClock
 import com.manasm.habit100.data.HabitDatabase
 import com.manasm.habit100.data.HabitRepository
 import com.manasm.habit100.data.RepoRolloverPort
+import com.manasm.habit100.notify.HabitNotifier
+import com.manasm.habit100.notify.ReminderScheduler
 import com.manasm.habit100.rollover.RolloverEngine
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -32,6 +34,9 @@ class AppContainer(app: Application) {
 
     val repository: HabitRepository =
         HabitRepository(db, db.habitDao(), db.dayLogDao(), db.checkinDao(), clock)
+
+    val notifier: HabitNotifier = HabitNotifier(app)
+    val reminderScheduler: ReminderScheduler = ReminderScheduler(app, clock)
 
     private val rolloverEngine: RolloverEngine by lazy {
         RolloverEngine(

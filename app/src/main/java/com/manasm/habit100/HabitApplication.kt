@@ -12,7 +12,9 @@ import com.manasm.habit100.rollover.RolloverWorker
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.distinctUntilChangedBy
 import kotlinx.coroutines.launch
+import java.time.ZoneId
 import java.util.concurrent.TimeUnit
 
 class HabitApplication : Application() {
@@ -52,5 +54,18 @@ class HabitApplication : Application() {
                 PeriodicWorkRequestBuilder<RolloverWorker>(1, TimeUnit.DAYS).build(),
             )
         }.onFailure { Log.w("HabitApplication", "Could not schedule rollover backstop work", it) }
+
+        // (Re)schedule the daily / grace-window reminder alarms whenever the active habit
+        // (and therefore its timezone) changes.
+        container.notifier.ensureChannel()
+        appScope.launch {
+            container.repository.observeActive()
+                .distinctUntilChangedBy { it?.habit?.let { h -> h.id to h.timeZoneId } }
+                .collect { active ->
+                    val zone = active?.let { ZoneId.of(it.habit.timeZoneId) } ?: ZoneId.systemDefault()
+                    runCatching { container.reminderScheduler.scheduleAll(zone) }
+                        .onFailure { Log.w("HabitApplication", "Could not schedule reminders", it) }
+                }
+        }
     }
 }
