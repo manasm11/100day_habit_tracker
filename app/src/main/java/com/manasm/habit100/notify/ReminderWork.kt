@@ -1,5 +1,7 @@
 package com.manasm.habit100.notify
 
+import com.manasm.habit100.data.habitKind
+
 import com.manasm.habit100.AppContainer
 import com.manasm.habit100.domain.dateForDay
 import kotlinx.coroutines.flow.first
@@ -23,7 +25,13 @@ object ReminderWork {
         val active = container.repository.observeActive().first()
         if (active != null) {
             val snap = container.repository.snapshotOf(active.habit, active.logs)
-            reminderFor(kind, active.habit.name, snap, active.habit.attemptTrackLength)?.let {
+            reminderFor(
+                kind,
+                active.habit.name,
+                snap,
+                active.habit.attemptTrackLength,
+                active.habit.habitKind(),
+            )?.let {
                 val zone = ZoneId.of(active.habit.timeZoneId)
                 val expiresAt = when (kind) {
                     ReminderKind.GRACE -> snap.graceDeadline

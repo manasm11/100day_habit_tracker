@@ -2,6 +2,7 @@ package com.manasm.habit100.ui.newhabit
 
 import androidx.lifecycle.ViewModel
 import com.manasm.habit100.data.HabitRepository
+import com.manasm.habit100.domain.HabitKind
 import com.manasm.habit100.domain.HabitTarget
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -21,6 +22,9 @@ class NewHabitViewModel(
     private val _name = MutableStateFlow("")
     val name: StateFlow<String> = _name.asStateFlow()
 
+    private val _kind = MutableStateFlow(HabitKind.BUILD)
+    val kind: StateFlow<HabitKind> = _kind.asStateFlow()
+
     private val _targetChoice = MutableStateFlow(TargetChoice.NONE)
     val targetChoice: StateFlow<TargetChoice> = _targetChoice.asStateFlow()
 
@@ -32,6 +36,19 @@ class NewHabitViewModel(
     val canCreateEnabled: StateFlow<Boolean> = _canCreate.asStateFlow()
 
     fun onNameChange(s: String) { _name.value = s; recompute() }
+
+    /**
+     * A quit habit has nothing to time or count — staying away from something has no reps —
+     * so choosing QUIT clears any target the user had picked (§15).
+     */
+    fun onKindChange(k: HabitKind) {
+        _kind.value = k
+        if (k == HabitKind.QUIT) {
+            _targetChoice.value = TargetChoice.NONE
+            _targetValue.value = ""
+        }
+        recompute()
+    }
     fun onTargetChoice(c: TargetChoice) { _targetChoice.value = c; recompute() }
     fun onTargetValueChange(s: String) { _targetValue.value = s.filter { it.isDigit() }.take(6); recompute() }
 
@@ -58,7 +75,7 @@ class NewHabitViewModel(
 
     /** Returns true on success, false if a habit is already forming. */
     suspend fun create(zoneId: ZoneId): Boolean = try {
-        repo.createHabit(_name.value, zoneId, buildTarget())
+        repo.createHabit(_name.value, zoneId, buildTarget(), _kind.value)
         true
     } catch (e: IllegalStateException) {
         false

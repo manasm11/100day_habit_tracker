@@ -211,4 +211,88 @@ class TrackerViewModelTest {
         assertEquals(1, s.doneCount)     // day 1 is still legitimately done
         assertTrue(s.canMarkToday)
     }
+
+    // ---- §15: quit habits
+
+    private suspend fun HabitRepository.startQuitHabit(name: String = "Smoking") =
+        createHabit(name, zone, kind = com.manasm.habit100.domain.HabitKind.QUIT)
+
+    @Test fun forming_state_carries_the_habit_kind() = runTest {
+        val (repo, vm) = setup(clockAt(LocalDate.of(2026, 1, 1)))
+        repo.startQuitHabit()
+        val s = vm.settled() as TrackerUiState.Forming
+        assertEquals(com.manasm.habit100.domain.HabitKind.QUIT, s.kind)
+        assertFalse("a quit habit never carries a timer target", s.hasTarget)
+    }
+
+    @Test fun a_build_habit_reports_its_kind_too() = runTest {
+        val (repo, vm) = setup(clockAt(LocalDate.of(2026, 1, 1)))
+        repo.createHabit("Read", zone)
+        val s = vm.settled() as TrackerUiState.Forming
+        assertEquals(com.manasm.habit100.domain.HabitKind.BUILD, s.kind)
+        assertFalse(s.canSlip)
+    }
+
+    @Test fun a_quit_habit_can_slip_and_take_it_back() = runTest {
+        val (repo, vm) = setup(clockAt(LocalDate.of(2026, 1, 1)))
+        repo.startQuitHabit()
+        assertTrue((vm.settled() as TrackerUiState.Forming).canSlip)
+
+        vm.slip()
+        val slipped = vm.state.first {
+            it is TrackerUiState.Forming && it.todaySlipped
+        } as TrackerUiState.Forming
+        assertTrue(slipped.canUndoSlip)
+        assertFalse(slipped.canMarkToday)
+        assertEquals(9, slipped.missesLeft)
+        assertEquals(CellState.MISSED, slipped.cells[0])
+
+        vm.undoSlip()
+        val restored = vm.state.first {
+            it is TrackerUiState.Forming && !it.todaySlipped
+        } as TrackerUiState.Forming
+        assertTrue(restored.canMarkToday)
+        assertEquals(10, restored.missesLeft)
+    }
+
+    @Test fun the_second_slip_in_a_row_is_flagged_as_fatal_before_it_is_taken() = runTest {
+        val clock = clockAt(LocalDate.of(2026, 1, 1))
+        val (repo, vm) = setup(clock)
+        repo.startQuitHabit()
+        vm.slip()                                    // day 1 slipped
+        vm.state.first { it is TrackerUiState.Forming && it.todaySlipped }
+
+        clock.instant = LocalDate.of(2026, 1, 2).atTime(12, 0).atZone(zone).toInstant()
+        vm.refresh()
+        val day2 = vm.state.first {
+            it is TrackerUiState.Forming && it.dayNumber == 2
+        } as TrackerUiState.Forming
+        assertTrue("yesterday was a slip, so today's slip ends it", day2.slipEndsAttempt)
+        assertTrue(day2.atRisk)
+    }
+
+    @Test fun a_slip_with_a_clean_day_behind_it_is_not_fatal() = runTest {
+        val (repo, vm) = setup(clockAt(LocalDate.of(2026, 1, 1)))
+        repo.startQuitHabit()
+        val s = vm.settled() as TrackerUiState.Forming
+        assertFalse(s.slipEndsAttempt)
+    }
+
+    @Test fun slipping_twice_running_ends_the_attempt() = runTest {
+        val clock = clockAt(LocalDate.of(2026, 1, 1))
+        val (repo, vm) = setup(clock)
+        repo.startQuitHabit("Smoking")
+        vm.slip()
+        vm.state.first { it is TrackerUiState.Forming && it.todaySlipped }
+
+        clock.instant = LocalDate.of(2026, 1, 2).atTime(12, 0).atZone(zone).toInstant()
+        vm.refresh()
+        vm.state.first { it is TrackerUiState.Forming && it.dayNumber == 2 }
+        vm.slip()
+
+        val failed = vm.state.first { it is TrackerUiState.Failed } as TrackerUiState.Failed
+        assertEquals("Smoking", failed.habitName)
+        assertEquals(2, failed.failedOnDay)
+        assertEquals("two slips in a row", failed.reason)
+    }
 }

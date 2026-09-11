@@ -27,6 +27,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -37,6 +38,7 @@ import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.Lifecycle
 import com.manasm.habit100.ui.GridSize
+import com.manasm.habit100.ui.HabitCopy
 import com.manasm.habit100.ui.HabitGrid
 import com.manasm.habit100.ui.components.StatCard
 import com.manasm.habit100.ui.theme.HabitColors
@@ -94,7 +96,10 @@ private fun EmptyState(onStartHabit: () -> Unit) {
     ) {
         Text("No habit forming yet.", style = MaterialTheme.typography.titleMedium)
         Spacer(Modifier.height(8.dp))
-        Text("Pick one thing. Do it for 100 days.", style = MaterialTheme.typography.bodyMedium)
+        Text(
+            "Pick one thing to build — or one to quit. 100 days either way.",
+            style = MaterialTheme.typography.bodyMedium,
+        )
         Spacer(Modifier.height(20.dp))
         Button(onClick = onStartHabit) { Text("Start a habit") }
     }
@@ -128,7 +133,11 @@ private fun FormingContent(
     onStartTarget: (Long) -> Unit,
 ) {
     var confirmUndo by rememberSaveable { mutableStateOf(false) }
+    var confirmSlip by rememberSaveable { mutableStateOf(false) }
+    var confirmUndoSlip by rememberSaveable { mutableStateOf(false) }
     val dayWord = if (s.isGraceDay) "yesterday" else "today"
+    val previousWord = if (s.isGraceDay) "the day before" else "yesterday"
+    val copy = remember(s.kind) { HabitCopy.of(s.kind) }
 
     Column(
         Modifier
@@ -143,8 +152,8 @@ private fun FormingContent(
         )
 
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            StatCard("Completed", "${s.doneCount} / ${s.trackLength}", Modifier.weight(1f))
-            StatCard("Misses left", "${s.missesLeft} / 10", Modifier.weight(1f))
+            StatCard(copy.doneStatLabel, "${s.doneCount} / ${s.trackLength}", Modifier.weight(1f))
+            StatCard(copy.missStatLabel, "${s.missesLeft} / 10", Modifier.weight(1f))
         }
 
         if (s.atRisk) {
@@ -155,17 +164,12 @@ private fun FormingContent(
             ) {
                 Column(Modifier.fillMaxWidth().padding(16.dp)) {
                     Text(
-                        "Don't miss $dayWord",
+                        copy.atRiskTitle(dayWord),
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                     )
                     Spacer(Modifier.height(4.dp))
-                    Text(
-                        if (s.isGraceDay)
-                            "The day before was a miss. Miss yesterday too and the attempt fails — two in a row."
-                        else
-                            "You missed yesterday. Miss today too and the attempt fails — two in a row.",
-                    )
+                    Text(copy.atRiskBody(previousWord))
                 }
             }
         } else if (s.isGraceDay) {
@@ -175,11 +179,10 @@ private fun FormingContent(
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 Column(Modifier.fillMaxWidth().padding(16.dp)) {
-                    Text("Yesterday isn't marked yet", fontWeight = FontWeight.SemiBold)
+                    Text(copy.graceCardTitle, fontWeight = FontWeight.SemiBold)
                     Spacer(Modifier.height(4.dp))
                     Text(
-                        "You can still mark it done until ${s.graceDeadlineText ?: "this morning"}. " +
-                            "After that it locks as a miss.",
+                        copy.graceCardBody(s.graceDeadlineText ?: "this morning"),
                         style = MaterialTheme.typography.bodyMedium,
                     )
                 }
@@ -188,7 +191,7 @@ private fun FormingContent(
 
         HabitGrid(cells = s.cells, size = GridSize.HERO, modifier = Modifier.fillMaxWidth())
 
-        Legend()
+        Legend(copy)
 
         Column {
             if (s.hasTarget && s.canMarkToday) {
@@ -203,30 +206,75 @@ private fun FormingContent(
                     onClick = vm::markDone,
                     enabled = s.canMarkToday,
                     modifier = Modifier.fillMaxWidth().height(56.dp),
-                ) {
-                    Text(
-                        when {
-                            s.alreadyDoneToday -> "Marked $dayWord ✓"
-                            s.isGraceDay -> "Mark yesterday done"
-                            else -> "Mark today done"
-                        },
-                    )
-                }
+                ) { Text(copy.markButton(dayWord, s.alreadyDoneToday)) }
+
                 if (s.canUndo) {
                     Spacer(Modifier.height(6.dp))
-                    TextButton(onClick = { confirmUndo = true }) {
-                        Text("Undo — I didn't actually do it")
+                    TextButton(onClick = { confirmUndo = true }) { Text(copy.undoMarkLabel) }
+                } else if (s.todaySlipped) {
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        "Day ${s.dayNumber} is logged as a slip.",
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                    if (s.canUndoSlip) {
+                        TextButton(onClick = { confirmUndoSlip = true }) { Text(copy.undoSlipLabel) }
                     }
                 } else if (!s.canMarkToday) {
                     Spacer(Modifier.height(6.dp))
                     Text(
-                        if (s.alreadyDoneToday) "Come back tomorrow."
-                        else "Nothing to mark right now.",
+                        if (s.alreadyDoneToday) copy.comeBackTomorrow else copy.nothingToMark,
                         style = MaterialTheme.typography.bodySmall,
                     )
                 }
             }
+
+            // §15: naming the slip out loud, instead of letting the day lapse into one.
+            if (s.canSlip) {
+                Spacer(Modifier.height(2.dp))
+                TextButton(onClick = { confirmSlip = true }) {
+                    Text(
+                        copy.slipButton(dayWord),
+                        color = HabitColors.missed,
+                    )
+                }
+            }
         }
+    }
+
+    if (confirmSlip) {
+        AlertDialog(
+            onDismissRequest = { confirmSlip = false },
+            title = { Text(copy.slipDialogTitle(dayWord)) },
+            text = { Text(copy.slipDialogBody(s.slipEndsAttempt, s.dayNumber)) },
+            confirmButton = {
+                TextButton(onClick = { confirmSlip = false; vm.slip() }) { Text(copy.slipConfirm) }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmSlip = false }) { Text(copy.slipDismiss) }
+            },
+        )
+    }
+
+    if (confirmUndoSlip) {
+        AlertDialog(
+            onDismissRequest = { confirmUndoSlip = false },
+            title = { Text("Take back the slip on day ${s.dayNumber}?") },
+            text = {
+                Text(
+                    "Day ${s.dayNumber} goes back to being open, and your slip is returned to " +
+                        "the budget. Only do this if you logged it by mistake.",
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = { confirmUndoSlip = false; vm.undoSlip() }) {
+                    Text("Take it back")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmUndoSlip = false }) { Text("Leave it") }
+            },
+        )
     }
 
     if (confirmUndo) {
@@ -255,16 +303,16 @@ private fun FormingContent(
 }
 
 @Composable
-private fun Legend() {
+private fun Legend(copy: HabitCopy) {
     Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-        LegendEntry(label = "done") {
+        LegendEntry(label = copy.doneLegend) {
             Surface(
                 color = HabitColors.done,
                 shape = MaterialTheme.shapes.small,
                 modifier = Modifier.size(12.dp),
             ) {}
         }
-        LegendEntry(label = "missed") {
+        LegendEntry(label = copy.missedLegend) {
             Surface(
                 color = HabitColors.missed,
                 shape = MaterialTheme.shapes.small,

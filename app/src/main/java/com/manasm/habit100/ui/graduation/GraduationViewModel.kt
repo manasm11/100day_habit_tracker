@@ -3,8 +3,10 @@ package com.manasm.habit100.ui.graduation
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.manasm.habit100.data.HabitRepository
+import com.manasm.habit100.data.habitKind
 import com.manasm.habit100.data.toRuleInput
 import com.manasm.habit100.domain.DayStatus
+import com.manasm.habit100.domain.HabitKind
 import com.manasm.habit100.domain.HabitRules
 import com.manasm.habit100.ui.CellState
 import com.manasm.habit100.ui.gridCells
@@ -21,6 +23,7 @@ data class GraduationUi(
     val missesUsed: Int,
     val trackLength: Int,
     val isTuneUp: Boolean,
+    val kind: HabitKind,
     val cells: List<CellState>,
 )
 
@@ -61,6 +64,7 @@ class GraduationViewModel(
                 missesUsed = snap.missCount,
                 trackLength = trackLength,
                 isTuneUp = trophy.isTuneUp,
+                kind = habit.habitKind(),
                 cells = gridCells(
                     trackLength = trackLength,
                     currentDay = trackLength + 1,

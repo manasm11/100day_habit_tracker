@@ -38,6 +38,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.manasm.habit100.ui.GridSize
+import com.manasm.habit100.ui.HabitCopy
 import com.manasm.habit100.ui.HabitGrid
 import com.manasm.habit100.ui.theme.HabitColors
 
@@ -179,7 +180,7 @@ private fun ShelfRowItem(
 
             if (expanded && row.badge == Badge.CHECK_IN) {
                 Spacer(Modifier.height(12.dp))
-                Text("Still doing this?", style = MaterialTheme.typography.bodyMedium)
+                Text(HabitCopy.of(row.kind).maintenancePrompt, style = MaterialTheme.typography.bodyMedium)
                 Spacer(Modifier.height(8.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     TextButton(onClick = onConfirm) { Text("Confirm") }

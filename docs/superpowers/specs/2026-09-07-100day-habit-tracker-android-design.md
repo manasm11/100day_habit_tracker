@@ -613,3 +613,67 @@ marks the day directly (honest-by-default, not honest-by-force — same spirit a
 
 The rule engine, grace window, rollover, and graduation are **unchanged** — a targeted
 habit still only needs "was day N marked done".
+
+---
+
+## 15. Quitting a bad habit (v1.3.0)
+
+A habit can be one you **build** ("meditate daily") or one you **quit** ("stop smoking").
+The mechanics are identical — 100 days, a 10-miss budget, never two misses in a row — so
+the rule engine is unchanged. Only the wording and one extra action differ.
+
+`habits.kind` ∈ `null | "quit"`. `null` reads as `BUILD`, which is what every habit
+written before this section was. Chosen in the new-habit flow, immutable for the attempt.
+Schema bumped v2 → v3 with `MIGRATION_2_3` adding the one nullable column.
+
+### 15.1 The daily mark
+
+**The tap always means the good day.** For a quit habit it means "I stayed clean today",
+not "I did it today". This direction is deliberate:
+
+- The green grid is the reward — 34 green squares is 34 days clean, something to protect.
+  A grid that stays blank until you fail gives the user nothing to look at.
+- It matches the engine, which already derives misses from the *absence* of a mark.
+  Inverting the tap would mean a second, mirrored path through the rules.
+- Daily contact is the product. An app you only open when you slip is an incident log.
+
+A slipped day is therefore recorded the same way a missed day always was: by the day
+elapsing unmarked, finalized by the 10:00 grace cutoff.
+
+### 15.2 The explicit slip
+
+A quit habit also gets an **"I slipped"** action, which writes a `MISSED` day-log row for
+the day in play rather than waiting for the next morning's rollover to derive it.
+
+Naming the slip out loud is the honest act, and a second slip in a row should end the
+attempt *now*, not at 10:00 tomorrow.
+
+`HabitRules.evaluate` treats an explicit `MISSED` row as **finalizing its day even when
+that day is still the one in play** (`isFinalized = day < currentDay || day in slippedDays`).
+For every habit written before this section the behaviour is identical, because rollover
+only ever wrote `MISSED` rows for already-elapsed days.
+
+Two snapshot fields carry it:
+
+- `todaySlipped` — the day in play carries an explicit slip; `canMarkToday` goes false.
+- `undoSlipDayNumber` — the day an undo would clear, **non-null only while the attempt is
+  still alive**.
+
+### 15.3 Confirmation, and what is final
+
+Logging a slip always confirms first. When the slip would end the attempt — second in a
+row, or the tenth miss already spent — the dialog says so before it is taken, and that
+slip is **final**: no undo, in keeping with the stakes the whole product rests on. An
+ordinary slip can be taken back until the day rolls over.
+
+### 15.4 Targets
+
+A quit habit carries no timer or rep target — there is nothing to time about not doing
+something. Choosing "Quit one" clears any target already picked and hides the picker.
+
+### 15.5 Wording
+
+Every user-facing string that differs lives in `ui/HabitCopy`, keyed by `HabitKind`, so
+the two vocabularies cannot drift apart: *did it / stayed clean*, *Completed / Clean days*,
+*Misses left / Slips left*, *missed / slipped*, *two misses in a row / two slips in a row*,
+plus the trophy, shelf, and reminder copy.

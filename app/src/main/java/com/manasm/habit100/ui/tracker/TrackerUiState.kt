@@ -1,5 +1,6 @@
 package com.manasm.habit100.ui.tracker
 
+import com.manasm.habit100.domain.HabitKind
 import com.manasm.habit100.ui.CellState
 
 sealed interface TrackerUiState {
@@ -29,6 +30,16 @@ sealed interface TrackerUiState {
         val undoDayNumber: Int,
         /** The habit has a timer / rep target — the primary action is "Start" (§14). */
         val hasTarget: Boolean,
+        /** What the daily mark means — drives every label on this screen (§15). */
+        val kind: HabitKind,
+        /** A quit habit with its day still open can name a slip. */
+        val canSlip: Boolean,
+        /** The day in play was named a slip. */
+        val todaySlipped: Boolean,
+        /** That slip can still be taken back — false once it has ended the attempt. */
+        val canUndoSlip: Boolean,
+        /** Slipping right now would end the attempt: second in a row, or the budget is spent. */
+        val slipEndsAttempt: Boolean,
     ) : TrackerUiState
 
     data class Graduated(val habitId: Long) : TrackerUiState
@@ -38,5 +49,6 @@ sealed interface TrackerUiState {
         val habitName: String,
         val reason: String,
         val failedOnDay: Int,
+        val kind: HabitKind,
     ) : TrackerUiState
 }

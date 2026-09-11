@@ -8,6 +8,26 @@ enum class DayStatus { DONE, MISSED }
 enum class HabitState { FORMING, GRADUATED, FAILED }
 enum class FailureReason { TWO_IN_A_ROW, BUDGET_EXCEEDED }
 
+/**
+ * What the daily mark means. The rules are identical for both — a marked day is a good day —
+ * only the wording and the available actions differ (§15).
+ *
+ * - [BUILD]: "I did it today."
+ * - [QUIT]: "I stayed clean today", plus an explicit "I slipped" that finalizes the day at once.
+ */
+enum class HabitKind {
+    BUILD,
+    QUIT,
+    ;
+
+    fun toColumn(): String? = if (this == QUIT) "quit" else null
+
+    companion object {
+        /** null (a pre-§15 row) reads as [BUILD] — every habit that existed before was one. */
+        fun fromColumn(raw: String?): HabitKind = if (raw == "quit") QUIT else BUILD
+    }
+}
+
 data class DayLog(val dayNumber: Int, val status: DayStatus)
 
 data class RuleInput(
@@ -34,6 +54,13 @@ data class RuleSnapshot(
     val failedOnDay: Int?,
     val canMarkToday: Boolean,
     val todayMarkedDone: Boolean,
+    /** The day in play carries an explicit slip — the user named it, rather than letting it lapse. */
+    val todaySlipped: Boolean = false,
+    /**
+     * The day an "undo my slip" would clear. Non-null only while the attempt is still alive:
+     * a slip that ends the attempt is final, and the confirmation dialog says so beforehand.
+     */
+    val undoSlipDayNumber: Int? = null,
     /** Can the user un-mark a day right now (the attempt is forming and [undoDayNumber] is set). */
     val canUndoMark: Boolean,
     /**

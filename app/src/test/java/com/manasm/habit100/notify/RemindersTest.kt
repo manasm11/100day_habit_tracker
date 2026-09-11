@@ -1,10 +1,13 @@
 package com.manasm.habit100.notify
 
 import com.manasm.habit100.domain.FailureReason
+import com.manasm.habit100.domain.HabitKind
 import com.manasm.habit100.domain.HabitState
 import com.manasm.habit100.domain.RuleSnapshot
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class RemindersTest {
@@ -92,5 +95,29 @@ class RemindersTest {
         )
         val c = reminderFor(ReminderKind.EVENING, "Read", s, trackLength = 30)!!
         assertEquals("Day 12 of 30 — mark it done.", c.body)
+    }
+
+    // ---- §15: quit habits
+
+    @Test fun a_quit_habit_is_asked_whether_it_stayed_clean() {
+        val s = snapshot(canMark = true)
+        val c = reminderFor(ReminderKind.EVENING, "Smoking", s, habitKind = HabitKind.QUIT)!!
+        assertTrue(c.title.contains("Smoking"))
+        assertTrue("$c", c.body.contains("clean"))
+        assertFalse("$c", c.body.contains("mark it done"))
+    }
+
+    @Test fun a_quit_habits_grace_reminder_warns_about_a_slip_not_a_miss() {
+        val s = snapshot(markableDay = 2, calendarDay = 3, canMark = true)
+        val c = reminderFor(ReminderKind.GRACE, "Smoking", s, habitKind = HabitKind.QUIT)!!
+        assertTrue("$c", c.body.contains("slip"))
+        assertFalse("$c", c.body.contains("miss"))
+    }
+
+    @Test fun a_build_habit_keeps_its_original_wording() {
+        val s = snapshot(canMark = true)
+        val c = reminderFor(ReminderKind.EVENING, "Read", s)!!
+        assertEquals("Time for Read", c.title)
+        assertTrue(c.body.contains("mark it done"))
     }
 }

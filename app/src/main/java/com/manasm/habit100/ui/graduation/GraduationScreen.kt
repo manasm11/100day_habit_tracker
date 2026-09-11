@@ -18,6 +18,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -27,6 +28,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.manasm.habit100.ui.GridSize
+import com.manasm.habit100.ui.HabitCopy
 import com.manasm.habit100.ui.HabitGrid
 import com.manasm.habit100.ui.components.StatCard
 import com.manasm.habit100.ui.share.shareGrid
@@ -57,9 +59,10 @@ fun GraduationScreen(
         verticalArrangement = Arrangement.spacedBy(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        val subHeadline = if (u.isTuneUp) "Tuned back up" else "It's a habit now"
+        val copy = remember(u.kind) { HabitCopy.of(u.kind) }
+        val subHeadline = copy.trophyHeadline(u.isTuneUp)
         Text("✓", style = MaterialTheme.typography.displayMedium, color = HabitColors.done)
-        Text("${u.trackLength} days complete", style = MaterialTheme.typography.titleMedium)
+        Text(copy.trophyComplete(u.trackLength), style = MaterialTheme.typography.titleMedium)
         Text(
             subHeadline,
             style = MaterialTheme.typography.headlineMedium,
@@ -74,9 +77,9 @@ fun GraduationScreen(
             Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            StatCard("Days done", "${u.daysDone}", Modifier.weight(1f))
+            StatCard(copy.trophyDaysLabel, "${u.daysDone}", Modifier.weight(1f))
             StatCard("Best streak", "${u.bestStreak}", Modifier.weight(1f))
-            StatCard("Misses used", "${u.missesUsed}", Modifier.weight(1f))
+            StatCard(copy.trophyMissLabel, "${u.missesUsed}", Modifier.weight(1f))
         }
 
         Spacer(Modifier.height(8.dp))

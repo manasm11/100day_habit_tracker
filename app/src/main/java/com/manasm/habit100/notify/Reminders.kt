@@ -1,5 +1,6 @@
 package com.manasm.habit100.notify
 
+import com.manasm.habit100.domain.HabitKind
 import com.manasm.habit100.domain.HabitState
 import com.manasm.habit100.domain.RuleSnapshot
 
@@ -19,7 +20,9 @@ fun reminderFor(
     habitName: String?,
     snapshot: RuleSnapshot?,
     trackLength: Int = 100,
+    habitKind: HabitKind = HabitKind.BUILD,
 ): ReminderContent? {
+    val quit = habitKind == HabitKind.QUIT
     if (habitName == null || snapshot == null) return null
     if (snapshot.state != HabitState.FORMING) return null
 
@@ -32,7 +35,11 @@ fun reminderFor(
             if (isGraceDay && !snapshot.todayMarkedDone) {
                 ReminderContent(
                     title = "Mark yesterday for $habitName",
-                    body = "Yesterday isn't marked. Do it before 10:00 AM or it counts as a miss.",
+                    body = if (quit) {
+                        "Yesterday isn't marked. Mark it clean before 10:00 AM or it locks as a slip."
+                    } else {
+                        "Yesterday isn't marked. Do it before 10:00 AM or it counts as a miss."
+                    },
                 )
             } else {
                 null
@@ -41,8 +48,12 @@ fun reminderFor(
         ReminderKind.EVENING ->
             if (!isGraceDay && snapshot.canMarkToday) {
                 ReminderContent(
-                    title = "Time for $habitName",
-                    body = "Day ${snapshot.currentDayNumber} of $trackLength — mark it done.",
+                    title = if (quit) "Staying clean — $habitName" else "Time for $habitName",
+                    body = if (quit) {
+                        "Day ${snapshot.currentDayNumber} of $trackLength — did you stay clean?"
+                    } else {
+                        "Day ${snapshot.currentDayNumber} of $trackLength — mark it done."
+                    },
                 )
             } else {
                 null

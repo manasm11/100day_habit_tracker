@@ -4,6 +4,7 @@ import androidx.room.withTransaction
 import com.manasm.habit100.clock.Clock
 import com.manasm.habit100.domain.DayLog
 import com.manasm.habit100.domain.DayStatus
+import com.manasm.habit100.domain.HabitKind
 import com.manasm.habit100.domain.HabitRules
 import com.manasm.habit100.domain.HabitState
 import com.manasm.habit100.domain.RuleSnapshot
@@ -60,11 +61,12 @@ class HabitRepository(
         name: String,
         zoneId: ZoneId,
         target: com.manasm.habit100.domain.HabitTarget = com.manasm.habit100.domain.HabitTarget.None,
+        kind: HabitKind = HabitKind.BUILD,
     ) {
         check(habitDao.activeCount() == 0) { "A habit is already forming" }
         val now = clock.now()
         val today = now.atZone(zoneId).toLocalDate()
-        val (kind, seconds, reps) = target.toColumns()
+        val (targetKind, seconds, reps) = target.toColumns()
         habitDao.insert(
             HabitEntity(
                 name = name.trim(),
@@ -79,7 +81,8 @@ class HabitRepository(
                 graduatedAt = null,
                 failureReason = null,
                 failedOnDay = null,
-                targetKind = kind,
+                kind = kind.toColumn(),
+                targetKind = targetKind,
                 targetSeconds = seconds,
                 targetReps = reps,
             )
@@ -102,6 +105,50 @@ class HabitRepository(
                     markedAt = clock.now(),
                 )
             )
+            applyTransitionLocked(habit.id)
+        }
+    }
+
+    /**
+     * Names a slip on the day in play (§15) — a quit habit's way of saying "it happened"
+     * without waiting for the next morning's rollover to derive it from an unmarked day.
+     *
+     * The row finalizes the day at once, so a second slip in a row ends the attempt on the
+     * spot rather than the next morning.
+     */
+    suspend fun markTodaySlipped(habitId: Long) {
+        db.withTransaction {
+            val habit = habitDao.byId(habitId) ?: return@withTransaction
+            val logs = dayLogDao.forAttempt(habit.id, habit.currentAttempt).map { it.toDayLog() }
+            val snap = snapshotOf(habit, logs)
+            check(snap.canMarkToday) { "There is no open day to slip on" }
+            dayLogDao.insert(
+                DayLogEntity(
+                    habitId = habit.id,
+                    attempt = habit.currentAttempt,
+                    dayNumber = snap.currentDayNumber,
+                    logDate = dateForDay(habit.attemptStartDate, snap.currentDayNumber),
+                    status = "missed",
+                    markedAt = clock.now(),
+                )
+            )
+            applyTransitionLocked(habit.id)
+        }
+    }
+
+    /**
+     * Takes back a slip logged on the day still in play. Only ever reachable while the attempt
+     * is alive — [RuleSnapshot.undoSlipDayNumber] is null once a slip has ended it, and the
+     * confirmation dialog warns before that slip is logged.
+     */
+    suspend fun undoSlip(habitId: Long) {
+        db.withTransaction {
+            val habit = habitDao.byId(habitId) ?: return@withTransaction
+            val logs = dayLogDao.forAttempt(habit.id, habit.currentAttempt).map { it.toDayLog() }
+            val snap = snapshotOf(habit, logs)
+            val day = snap.undoSlipDayNumber
+            checkNotNull(day) { "There is no slip to undo right now" }
+            dayLogDao.deleteDay(habit.id, habit.currentAttempt, day)
             applyTransitionLocked(habit.id)
         }
     }

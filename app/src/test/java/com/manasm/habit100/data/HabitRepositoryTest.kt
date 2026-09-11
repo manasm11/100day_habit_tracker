@@ -2,6 +2,7 @@ package com.manasm.habit100.data
 
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
+import com.manasm.habit100.domain.HabitKind
 import com.manasm.habit100.domain.HabitState
 import com.manasm.habit100.support.FakeClock
 import kotlinx.coroutines.flow.first
@@ -307,5 +308,95 @@ class HabitRepositoryTest {
 
         assertEquals(listOf(1), db.dayLogDao().forAttempt(id, 1).map { it.dayNumber })
         assertTrue(repo.observeActive().first()!!.snapshot.canMarkToday)
+    }
+
+    // ---- §15: quit habits
+
+    private suspend fun quitHabit(name: String = "Smoking"): Long {
+        repo.createHabit(name, zone, kind = HabitKind.QUIT)
+        return repo.observeActive().first()!!.habit.id
+    }
+
+    @Test fun a_quit_habit_round_trips_its_kind() = runTest {
+        val id = quitHabit()
+        assertEquals(HabitKind.QUIT, db.habitDao().byId(id)!!.habitKind())
+    }
+
+    @Test fun a_habit_created_without_a_kind_is_a_build_habit() = runTest {
+        repo.createHabit("Read", zone)
+        assertEquals(HabitKind.BUILD, repo.observeActive().first()!!.habit.habitKind())
+    }
+
+    @Test fun reporting_a_slip_writes_a_missed_row_for_the_day_in_play() = runTest {
+        val id = quitHabit()
+        repo.markTodaySlipped(id)
+
+        val log = db.dayLogDao().forAttempt(id, 1).single()
+        assertEquals(1, log.dayNumber)
+        assertEquals("missed", log.status)
+
+        val snap = repo.observeActive().first()!!.snapshot
+        assertTrue(snap.todaySlipped)
+        assertEquals(1, snap.missCount)
+        assertEquals(9, snap.missesLeft)
+        assertFalse(snap.canMarkToday)
+        assertEquals(HabitState.FORMING, snap.state)
+    }
+
+    @Test fun a_live_slip_can_be_taken_back() = runTest {
+        val id = quitHabit()
+        repo.markTodaySlipped(id)
+        assertEquals(1, repo.observeActive().first()!!.snapshot.undoSlipDayNumber)
+
+        repo.undoSlip(id)
+
+        assertTrue(db.dayLogDao().forAttempt(id, 1).isEmpty())
+        val snap = repo.observeActive().first()!!.snapshot
+        assertEquals(0, snap.missCount)
+        assertTrue(snap.canMarkToday)
+        assertFalse(snap.todaySlipped)
+    }
+
+    @Test fun slipping_two_days_running_ends_the_attempt_on_the_spot() = runTest {
+        val id = quitHabit()
+        repo.markTodaySlipped(id)                                   // day 1
+        clock.instant = LocalDate.of(2026, 1, 2).atTime(12, 0).atZone(zone).toInstant()
+        repo.markTodaySlipped(id)                                   // day 2 — second in a row
+
+        val habit = db.habitDao().byId(id)!!
+        assertEquals("failed", habit.status)
+        assertEquals("TWO_IN_A_ROW", habit.failureReason)
+        assertEquals(2, habit.failedOnDay)
+        assertNull("a failed attempt leaves the forming slot", repo.observeActive().first())
+    }
+
+    @Test fun a_slip_cannot_be_logged_on_a_day_already_marked_clean() = runTest {
+        val id = quitHabit()
+        repo.markTodayDone(id)
+        assertThrows(IllegalStateException::class.java) {
+            kotlinx.coroutines.runBlocking { repo.markTodaySlipped(id) }
+        }
+        assertEquals("done", db.dayLogDao().forAttempt(id, 1).single().status)
+    }
+
+    @Test fun there_is_nothing_to_undo_when_no_slip_was_logged() = runTest {
+        val id = quitHabit()
+        assertThrows(IllegalStateException::class.java) {
+            kotlinx.coroutines.runBlocking { repo.undoSlip(id) }
+        }
+    }
+
+    @Test fun a_slip_logged_yesterday_is_undoable_inside_the_grace_window() = runTest {
+        val id = quitHabit()
+        repo.markTodayDone(id)                                      // day 1 clean
+        clock.instant = LocalDate.of(2026, 1, 2).atTime(12, 0).atZone(zone).toInstant()
+        repo.markTodaySlipped(id)                                   // day 2 slipped
+        // Next morning, still inside the grace window for day 2.
+        clock.instant = LocalDate.of(2026, 1, 3).atTime(8, 0).atZone(zone).toInstant()
+
+        assertEquals(2, repo.observeActive().first()!!.snapshot.undoSlipDayNumber)
+        repo.undoSlip(id)
+
+        assertEquals(listOf(1), db.dayLogDao().forAttempt(id, 1).map { it.dayNumber })
     }
 }

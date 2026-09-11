@@ -23,6 +23,8 @@ data class HabitEntity(
     val failureReason: String?,
     val failedOnDay: Int?,
     val graduationAcknowledged: Boolean = true,
+    // What the daily mark means — see domain/HabitKind. null == a habit to build (§15).
+    val kind: String? = null,           // quit
     // How the habit is done — see domain/HabitTarget. null == a plain tap-to-mark habit.
     val targetKind: String? = null,     // duration | reps
     val targetSeconds: Int? = null,

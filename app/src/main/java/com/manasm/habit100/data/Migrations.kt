@@ -14,5 +14,16 @@ object HabitMigrations {
         }
     }
 
-    val ALL: Array<Migration> = arrayOf(MIGRATION_1_2)
+    /**
+     * v3 adds the habit kind (§15). Nullable with no default, so existing rows keep a NULL
+     * that [com.manasm.habit100.domain.HabitKind.fromColumn] reads as BUILD — which is what
+     * every habit written before §15 was.
+     */
+    val MIGRATION_2_3 = object : Migration(2, 3) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("ALTER TABLE habits ADD COLUMN kind TEXT")
+        }
+    }
+
+    val ALL: Array<Migration> = arrayOf(MIGRATION_1_2, MIGRATION_2_3)
 }

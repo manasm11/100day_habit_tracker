@@ -5,8 +5,10 @@ import androidx.lifecycle.viewModelScope
 import com.manasm.habit100.data.ActiveHabit
 import com.manasm.habit100.data.HabitEntity
 import com.manasm.habit100.data.HabitRepository
+import com.manasm.habit100.data.habitKind
 import com.manasm.habit100.data.target
 import com.manasm.habit100.domain.DayStatus
+import com.manasm.habit100.domain.HabitKind
 import com.manasm.habit100.domain.HabitState
 import com.manasm.habit100.ui.gridCells
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -70,14 +72,16 @@ class TrackerViewModel(
         if (failed != null) return TrackerUiState.Failed(
             habitId = failed.id,
             habitName = failed.name,
-            reason = friendlyReason(failed.failureReason),
+            reason = friendlyReason(failed.failureReason, failed.habitKind()),
             failedOnDay = failed.failedOnDay ?: 0,
+            kind = failed.habitKind(),
         )
         return TrackerUiState.Empty
     }
 
     private fun formingState(a: ActiveHabit): TrackerUiState.Forming {
         val snap = repo.snapshotOf(a.habit, a.logs) // fresh clock read
+        val kind = a.habit.habitKind()
         val trackLength = a.habit.attemptTrackLength
         val done = a.logs.filter { it.status == DayStatus.DONE }.map { it.dayNumber }.toSet()
         val missed = a.logs.filter { it.status == DayStatus.MISSED }.map { it.dayNumber }.toSet()
@@ -107,13 +111,22 @@ class TrackerViewModel(
             canUndo = snap.canUndoMark,
             undoDayNumber = snap.undoDayNumber ?: 0,
             hasTarget = a.habit.target() != com.manasm.habit100.domain.HabitTarget.None,
+            kind = kind,
+            canSlip = kind == HabitKind.QUIT && snap.canMarkToday,
+            todaySlipped = snap.todaySlipped,
+            canUndoSlip = snap.undoSlipDayNumber != null,
+            // Second in a row, or the last of the ten — either way the next slip is the end.
+            slipEndsAttempt = snap.atRisk || snap.missesLeft == 0,
         )
     }
 
-    private fun friendlyReason(raw: String?): String = when (raw) {
-        "TWO_IN_A_ROW" -> "two misses in a row"
-        "BUDGET_EXCEEDED" -> "used all 10 misses"
-        else -> "attempt ended"
+    private fun friendlyReason(raw: String?, kind: HabitKind): String {
+        val noun = if (kind == HabitKind.QUIT) "slips" else "misses"
+        return when (raw) {
+            "TWO_IN_A_ROW" -> "two $noun in a row"
+            "BUDGET_EXCEEDED" -> "used all 10 $noun"
+            else -> "attempt ended"
+        }
     }
 
     fun markDone() {
@@ -128,6 +141,23 @@ class TrackerViewModel(
         viewModelScope.launch {
             val active = repo.observeActive().first() ?: return@launch
             runCatching { repo.undoMarkDay(active.habit.id) }
+            refreshTicker.value++
+        }
+    }
+
+    /** Name a slip on the day in play (§15). The screen confirms first — it can end the attempt. */
+    fun slip() {
+        viewModelScope.launch {
+            val active = repo.observeActive().first() ?: return@launch
+            runCatching { repo.markTodaySlipped(active.habit.id) }
+            refreshTicker.value++
+        }
+    }
+
+    fun undoSlip() {
+        viewModelScope.launch {
+            val active = repo.observeActive().first() ?: return@launch
+            runCatching { repo.undoSlip(active.habit.id) }
             refreshTicker.value++
         }
     }

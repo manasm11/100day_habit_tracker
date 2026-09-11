@@ -9,6 +9,13 @@ object HabitRules {
             .filter { it.status == DayStatus.DONE }
             .map { it.dayNumber }
             .toHashSet()
+        // Explicit slips (§15). Misses are otherwise derived positionally, so a MISSED row on
+        // an elapsed day is redundant — it only changes anything on the day still in play,
+        // which it finalizes immediately instead of leaving pending until rollover.
+        val slippedDays = input.dayLogs
+            .filter { it.status == DayStatus.MISSED }
+            .map { it.dayNumber }
+            .toHashSet()
 
         val calendarDay = currentDayNumber(input.startDate, input.zoneId, now)
         // The one day the user can act on: today, or yesterday during the morning grace window.
@@ -18,6 +25,7 @@ object HabitRules {
 
         val lastDay = minOf(currentDay, input.trackLength)
         val todayMarkedDone = currentDay <= input.trackLength && currentDay in doneDays
+        val todaySlipped = currentDay <= input.trackLength && currentDay in slippedDays
 
         var done = 0
         var misses = 0
@@ -30,13 +38,14 @@ object HabitRules {
         var day = 1
         while (day <= lastDay) {
             val isDone = day in doneDays
-            val isPast = day < currentDay
+            // An explicit slip finalizes its day even when that day is still the one in play.
+            val isFinalized = day < currentDay || day in slippedDays
             if (isDone) {
                 done++
                 consecutive = 0
                 streak++
                 if (streak > bestStreak) bestStreak = streak
-            } else if (isPast) {
+            } else if (isFinalized) {
                 misses++
                 consecutive++
                 streak = 0
@@ -69,7 +78,13 @@ object HabitRules {
 
         val canMarkToday = state == HabitState.FORMING &&
             currentDay in 1..input.trackLength &&
-            !todayMarkedDone
+            !todayMarkedDone &&
+            !todaySlipped
+
+        // An accidental slip is recoverable right up until it ends the attempt; past that the
+        // attempt is over and stays over (the confirm dialog warns before a fatal one).
+        val undoSlipDayNumber: Int? =
+            currentDay.takeIf { state == HabitState.FORMING && todaySlipped }
 
         // The day undo would clear: the current calendar day if marked, else the grace day
         // while its window is still open and it is marked. Prefer the later of the two.
@@ -108,6 +123,8 @@ object HabitRules {
             failedOnDay = failedOnDay,
             canMarkToday = canMarkToday,
             todayMarkedDone = todayMarkedDone,
+            todaySlipped = todaySlipped,
+            undoSlipDayNumber = undoSlipDayNumber,
             canUndoMark = canUndoMark,
             undoDayNumber = undoDayNumber,
             graceDeadline = graceDeadline,

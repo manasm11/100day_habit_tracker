@@ -3,6 +3,7 @@ package com.manasm.habit100.ui.shelf
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.manasm.habit100.data.HabitRepository
+import com.manasm.habit100.data.habitKind
 import com.manasm.habit100.data.MasteredHabitRow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -78,5 +79,6 @@ private fun MasteredHabitRow.toRow(): ShelfRow {
         slipped = slipped,
         canTuneUp = slipped && slotFree && habit.status == "mastered",
         tuneUpInProgress = habit.status == "tuning_up",
+        kind = habit.habitKind(),
     )
 }

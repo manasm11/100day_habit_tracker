@@ -28,6 +28,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.manasm.habit100.domain.HabitKind
+import com.manasm.habit100.ui.HabitCopy
 import kotlinx.coroutines.launch
 import java.time.ZoneId
 
@@ -42,6 +44,8 @@ fun NewHabitScreen(
     val canCreate by vm.canCreateEnabled.collectAsStateWithLifecycle()
     val targetChoice by vm.targetChoice.collectAsStateWithLifecycle()
     val targetValue by vm.targetValue.collectAsStateWithLifecycle()
+    val kind by vm.kind.collectAsStateWithLifecycle()
+    val copy = remember(kind) { HabitCopy.of(kind) }
     val scope = rememberCoroutineScope()
     var blocked by remember { mutableStateOf(false) }
     val zoneId = remember { ZoneId.systemDefault() }
@@ -62,42 +66,71 @@ fun NewHabitScreen(
                 .padding(24.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            Text(
-                "One habit at a time. 100 days. Up to 10 misses — but never two days in a row.",
-                style = MaterialTheme.typography.bodyMedium,
-            )
-            OutlinedTextField(
-                value = name,
-                onValueChange = {
-                    blocked = false
-                    vm.onNameChange(it)
-                },
-                label = { Text("What will you do daily?") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-            )
-            Text("How do you do it?", style = MaterialTheme.typography.labelLarge)
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier.horizontalScroll(rememberScrollState()),
-            ) {
-                NewHabitViewModel.TargetChoice.entries.forEach { choice ->
+            Text(copy.rulesBlurb, style = MaterialTheme.typography.bodyMedium)
+
+            Text("What kind of habit?", style = MaterialTheme.typography.labelLarge)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                HabitKind.entries.forEach { k ->
                     FilterChip(
-                        selected = targetChoice == choice,
-                        onClick = { vm.onTargetChoice(choice) },
+                        selected = kind == k,
+                        onClick = {
+                            blocked = false
+                            vm.onKindChange(k)
+                        },
                         label = {
                             Text(
-                                when (choice) {
-                                    NewHabitViewModel.TargetChoice.NONE -> "Just check it off"
-                                    NewHabitViewModel.TargetChoice.DURATION -> "Time it"
-                                    NewHabitViewModel.TargetChoice.REPS -> "Count reps"
+                                when (k) {
+                                    HabitKind.BUILD -> "Build one"
+                                    HabitKind.QUIT -> "Quit one"
                                 },
                             )
                         },
                     )
                 }
             }
-            if (targetChoice != NewHabitViewModel.TargetChoice.NONE) {
+
+            OutlinedTextField(
+                value = name,
+                onValueChange = {
+                    blocked = false
+                    vm.onNameChange(it)
+                },
+                label = { Text(copy.namePrompt) },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+
+            // Nothing to time or count when the whole point is not doing it.
+            if (kind == HabitKind.BUILD) {
+                Text("How do you do it?", style = MaterialTheme.typography.labelLarge)
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.horizontalScroll(rememberScrollState()),
+                ) {
+                    NewHabitViewModel.TargetChoice.entries.forEach { choice ->
+                        FilterChip(
+                            selected = targetChoice == choice,
+                            onClick = { vm.onTargetChoice(choice) },
+                            label = {
+                                Text(
+                                    when (choice) {
+                                        NewHabitViewModel.TargetChoice.NONE -> "Just check it off"
+                                        NewHabitViewModel.TargetChoice.DURATION -> "Time it"
+                                        NewHabitViewModel.TargetChoice.REPS -> "Count reps"
+                                    },
+                                )
+                            },
+                        )
+                    }
+                }
+            } else {
+                Text(
+                    "Each day you stay away from it, mark it clean. If you slip, say so — " +
+                        "two slips in a row ends the attempt.",
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+            if (kind == HabitKind.BUILD && targetChoice != NewHabitViewModel.TargetChoice.NONE) {
                 OutlinedTextField(
                     value = targetValue,
                     onValueChange = vm::onTargetValueChange,
@@ -131,7 +164,7 @@ fun NewHabitScreen(
                 },
                 enabled = canCreate,
                 modifier = Modifier.fillMaxWidth(),
-            ) { Text("Start 100 days") }
+            ) { Text(copy.startButton) }
         }
     }
 }

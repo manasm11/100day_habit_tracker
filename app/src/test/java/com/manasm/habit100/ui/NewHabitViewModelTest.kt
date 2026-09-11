@@ -2,6 +2,10 @@ package com.manasm.habit100.ui
 
 import com.manasm.habit100.data.HabitDatabaseTestHooks
 import com.manasm.habit100.data.HabitRepository
+import com.manasm.habit100.data.habitKind
+import com.manasm.habit100.data.target
+import com.manasm.habit100.domain.HabitKind
+import com.manasm.habit100.domain.HabitTarget
 import com.manasm.habit100.support.FakeClock
 import com.manasm.habit100.support.clearForTest
 import com.manasm.habit100.ui.newhabit.NewHabitViewModel
@@ -104,5 +108,50 @@ class NewHabitViewModelTest {
         assertTrue(vm.create(ZoneId.of("America/New_York")))
         val h = r.observeActive().first()!!.habit
         assertEquals(25, h.targetReps)
+    }
+
+    // ---- §15: quit habits
+
+    @Test fun a_new_habit_is_one_to_build_by_default() = runTest {
+        val vm = newHabitVm(repo())
+        assertEquals(HabitKind.BUILD, vm.kind.first())
+    }
+
+    @Test fun choosing_quit_creates_a_quit_habit() = runTest {
+        val r = repo()
+        val vm = newHabitVm(r)
+        vm.onNameChange("Smoking")
+        vm.onKindChange(HabitKind.QUIT)
+        assertTrue(vm.create(ZoneId.of("UTC")))
+
+        val habit = r.observeActive().first()!!.habit
+        assertEquals("Smoking", habit.name)
+        assertEquals(HabitKind.QUIT, habit.habitKind())
+    }
+
+    @Test fun a_quit_habit_cannot_carry_a_timer_target() = runTest {
+        val r = repo()
+        val vm = newHabitVm(r)
+        vm.onNameChange("Scrolling")
+        vm.onTargetChoice(NewHabitViewModel.TargetChoice.DURATION)
+        vm.onTargetValueChange("20")
+        vm.onKindChange(HabitKind.QUIT)
+
+        // Switching to QUIT clears the target outright — there is nothing to time.
+        assertEquals(NewHabitViewModel.TargetChoice.NONE, vm.targetChoice.first())
+        assertTrue("a quit habit needs only a name", vm.canCreateEnabled.first())
+        assertTrue(vm.create(ZoneId.of("UTC")))
+        assertEquals(HabitTarget.None, r.observeActive().first()!!.habit.target())
+    }
+
+    @Test fun switching_back_to_build_makes_targets_available_again() = runTest {
+        val vm = newHabitVm(repo())
+        vm.onNameChange("Meditate")
+        vm.onKindChange(HabitKind.QUIT)
+        vm.onKindChange(HabitKind.BUILD)
+        vm.onTargetChoice(NewHabitViewModel.TargetChoice.DURATION)
+        assertFalse("a duration target still needs its minutes", vm.canCreateEnabled.first())
+        vm.onTargetValueChange("10")
+        assertTrue(vm.canCreateEnabled.first())
     }
 }
