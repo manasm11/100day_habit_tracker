@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Android Auto Backup, API 26-30 (§16). Belt and braces behind the manual export: this only
+  fires when the device is idle, charging and on unmetered Wi-Fi, and only restores during an
+  app install, so it is a convenience for device transfer, not the backup the user relies on.
+
+  The Room database is included explicitly; WAL sidecars are excluded because a copy of them
+  taken outside a checkpoint can be inconsistent with the main file.
+-->
+<full-backup-content>
+    <include domain="database" path="habit.db" />
+    <exclude domain="database" path="habit.db-wal" />
+    <exclude domain="database" path="habit.db-shm" />
+    <include domain="file" path="datastore/" />
+</full-backup-content>

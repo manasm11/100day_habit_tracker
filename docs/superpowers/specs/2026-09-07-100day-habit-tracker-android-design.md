@@ -677,3 +677,70 @@ Every user-facing string that differs lives in `ui/HabitCopy`, keyed by `HabitKi
 the two vocabularies cannot drift apart: *did it / stayed clean*, *Completed / Clean days*,
 *Misses left / Slips left*, *missed / slipped*, *two misses in a row / two slips in a row*,
 plus the trophy, shelf, and reminder copy.
+
+---
+
+## 16. Backup and restore (v1.4.0)
+
+The record lives only on the device, and the product's whole value is an unbroken run of
+days. Losing the phone on day 87 is not "losing some data" — it is losing the thing, with
+no way to prove to yourself that you did it. `android:allowBackup="true"` alone is not a
+safety net: Auto Backup runs only when the device is idle, charging and on unmetered Wi-Fi,
+and restores only during an app *install*, which a sideloaded APK never triggers.
+
+### 16.1 Format
+
+A JSON document, not a copy of the SQLite file. A `.db` copy is locked to the schema version
+that wrote it; JSON with a `format` field can be read forward across every future migration,
+and the user can open it.
+
+Every field is a primitive — dates as ISO strings, instants as epoch millis — so the format
+never depends on a Room converter or an entity's field order. Day logs and check-ins nest
+under their habit, so a restore never remaps database ids.
+
+`BackupCodec.FORMAT` is bumped only when the shape changes incompatibly. Decoding accepts
+`format <= FORMAT` and **refuses** anything higher with "written by a newer version of the
+app" rather than reading half a file. Unknown fields are ignored, never fatal.
+
+### 16.2 What is captured
+
+**Every habit, whatever its status** — `forming`, `tuning_up`, `mastered`, `failed`, and
+`abandoned` — with **all** day logs across **all** attempts and all `maintenance_checkins`.
+
+The mastered shelf is the more important half: a forming attempt is at most 100 days old,
+while a trophy is permanent.
+
+### 16.3 Restore replaces; it never merges
+
+The core invariant is one habit forming at a time, and merging two device states would need
+conflict rules the user cannot reason about at the moment they are restoring a dead phone.
+"This file is your app as of that date" is a model that survives stress.
+
+The whole restore is one transaction, so a failure part-way leaves the device untouched. The
+single-active-slot trigger still applies: a damaged backup carrying two forming habits aborts
+the restore rather than producing a state the app cannot represent.
+
+Nothing is written until the user confirms — choosing a file only parses and previews it.
+
+### 16.4 Staleness applies to the forming habit only
+
+`HabitRules` derives the in-flight attempt from `attemptStartDate` against *now*, so
+restoring a stale backup correctly counts the intervening days as misses and may end that
+attempt. That is the honest behaviour: rebasing the start date on restore would turn
+export/restore into a cheat code for skipping days.
+
+A trophy is a historical fact — days 1..N of the trophy attempt, each with a logged date —
+and is never re-derived against today. **A backup from any age restores the mastered shelf
+unchanged.** `RestorePreview.formingWillEnd` evaluates the backup's forming attempt against
+the current clock, so the confirmation dialog can scope the warning to the habit it affects.
+
+A side effect, benign by design: the monthly maintenance pulse counts back from the current
+month, so a gap while a backup sat idle shows the habit as "check-in due" and restarts its
+streak counter. Nothing can fail because of it.
+
+### 16.5 Auto Backup
+
+`backup_rules.xml` (API 26-30) and `data_extraction_rules.xml` (API 31+) now name the habit
+database explicitly, so cloud backup and device-to-device transfer carry it. The WAL sidecars
+are excluded — a copy taken outside a checkpoint can disagree with the main file. This stays
+a convenience behind the manual export, never the mechanism the user relies on.

@@ -10,6 +10,8 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.manasm.habit100.AppContainer
+import com.manasm.habit100.ui.backup.BackupScreen
+import com.manasm.habit100.ui.backup.BackupViewModel
 import com.manasm.habit100.ui.graduation.GraduationScreen
 import com.manasm.habit100.ui.graduation.GraduationViewModel
 import com.manasm.habit100.ui.newhabit.NewHabitScreen
@@ -27,6 +29,7 @@ object Routes {
     const val GRADUATION = "graduation"
     const val SHELF = "shelf"
     const val TARGET = "target"
+    const val BACKUP = "backup"
 }
 
 /**
@@ -48,6 +51,7 @@ fun AppNavHost(container: AppContainer) {
                     }
                 },
                 onOpenShelf = { nav.navigate(Routes.SHELF) },
+                onOpenBackup = { nav.navigate(Routes.BACKUP) },
                 onStartTarget = { id -> nav.navigate("${Routes.TARGET}/$id") },
             )
         }
@@ -88,6 +92,17 @@ fun AppNavHost(container: AppContainer) {
                 },
             )
         }
+        composable(Routes.BACKUP) {
+            val vm: BackupViewModel<android.net.Uri> = viewModel(
+                factory = viewModelFactory {
+                    initializer {
+                        BackupViewModel(container.backupRepository, container.backupIo, container.clock)
+                    }
+                },
+            )
+            BackupScreen(vm = vm, onBack = { nav.popBackStack() })
+        }
+
         composable(Routes.SHELF) {
             val vm: ShelfViewModel = viewModel(factory = HabitViewModelFactory(container))
             ShelfScreen(vm = vm, onBack = { nav.popBackStack() })

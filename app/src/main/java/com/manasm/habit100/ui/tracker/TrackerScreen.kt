@@ -15,6 +15,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -50,9 +52,11 @@ fun TrackerScreen(
     onStartHabit: () -> Unit,
     onGraduated: (Long) -> Unit,
     onOpenShelf: () -> Unit,
+    onOpenBackup: () -> Unit,
     onStartTarget: (Long) -> Unit,
 ) {
     val state by vm.state.collectAsStateWithLifecycle()
+    var menuOpen by rememberSaveable { mutableStateOf(false) }
 
     // Ruling 3: re-derive the snapshot against the current clock whenever we resume.
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { vm.refresh() }
@@ -64,7 +68,16 @@ fun TrackerScreen(
     Scaffold(topBar = {
         TopAppBar(
             title = { Text("100 Day Habit Tracker") },
-            actions = { TextButton(onClick = onOpenShelf) { Text("Mastered") } },
+            actions = {
+                TextButton(onClick = onOpenShelf) { Text("Mastered") }
+                TextButton(onClick = { menuOpen = true }) { Text("⋮") }
+                DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                    DropdownMenuItem(
+                        text = { Text("Backup & restore") },
+                        onClick = { menuOpen = false; onOpenBackup() },
+                    )
+                }
+            },
         )
     }) { pad ->
         Column(

@@ -30,6 +30,13 @@ interface HabitDao {
 
     @Query("SELECT * FROM habits WHERE status = 'failed' ORDER BY id DESC LIMIT 1")
     fun observeFailedHabit(): Flow<HabitEntity?>
+
+    // Backup (§16): the whole table, every status, oldest first.
+    @Query("SELECT * FROM habits ORDER BY id")
+    suspend fun all(): List<HabitEntity>
+
+    @Query("DELETE FROM habits")
+    suspend fun deleteAll()
 }
 
 @Dao
@@ -45,6 +52,10 @@ interface DayLogDao {
 
     @Query("DELETE FROM day_logs WHERE habitId = :habitId AND attempt = :attempt AND dayNumber = :dayNumber")
     suspend fun deleteDay(habitId: Long, attempt: Int, dayNumber: Int)
+
+    // Backup (§16): every attempt, not just the current one.
+    @Query("SELECT * FROM day_logs WHERE habitId = :habitId ORDER BY attempt, dayNumber")
+    suspend fun allForHabit(habitId: Long): List<DayLogEntity>
 }
 
 @Dao
@@ -58,4 +69,10 @@ interface CheckinDao {
 
     @Query("SELECT * FROM maintenance_checkins WHERE habitId = :habitId ORDER BY checkedAt DESC")
     fun observeForHabit(habitId: Long): Flow<List<MaintenanceCheckinEntity>>
+
+    // Backup (§16).
+    @Query("SELECT * FROM maintenance_checkins WHERE habitId = :habitId ORDER BY period")
+    suspend fun allForHabit(habitId: Long): List<MaintenanceCheckinEntity>
+
+    @Insert suspend fun insertAll(rows: List<MaintenanceCheckinEntity>)
 }

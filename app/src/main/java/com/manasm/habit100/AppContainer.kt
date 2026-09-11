@@ -1,6 +1,10 @@
 package com.manasm.habit100
 
 import android.app.Application
+import android.net.Uri
+import com.manasm.habit100.backup.BackupFileIo
+import com.manasm.habit100.backup.BackupRepository
+import com.manasm.habit100.backup.ContentResolverBackupIo
 import com.manasm.habit100.clock.Clock
 import com.manasm.habit100.clock.SystemClock
 import com.manasm.habit100.data.HabitDatabase
@@ -21,6 +25,16 @@ class AppContainer(app: Application) {
 
     val repository: HabitRepository =
         HabitRepository(db, db.habitDao(), db.dayLogDao(), db.checkinDao(), clock)
+
+    /** Read from the package rather than BuildConfig so no extra build feature is needed. */
+    private val appVersion: String = runCatching {
+        app.packageManager.getPackageInfo(app.packageName, 0).versionName
+    }.getOrNull() ?: "unknown"
+
+    val backupRepository: BackupRepository =
+        BackupRepository(db, db.habitDao(), db.dayLogDao(), db.checkinDao(), clock, appVersion)
+
+    val backupIo: BackupFileIo<Uri> = ContentResolverBackupIo(app.contentResolver)
 
     val notifier: HabitNotifier = HabitNotifier(app)
     val reminderScheduler: ReminderScheduler = ReminderScheduler(app, clock)
